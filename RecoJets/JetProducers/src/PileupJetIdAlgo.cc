@@ -388,7 +388,7 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const pat::Jet * jet,
       sumPtNe               += candPt;
     }
     // Charged  particles                                                                                                                                              
-    if(  icand->pdgId() == 211 ) {
+    if(  icand->charge() != 0 ) {
       if (lLeadCh.isNull() || candPt > lLeadCh->pt()) { lLeadCh = icand; }
       internalId_.dRMeanCh_  += candPtDr;
       internalId_.ptDCh_     += candPt*candPt;
@@ -399,7 +399,7 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const pat::Jet * jet,
     // beta and betastar                                                                                                                                               
     //    if(  icand->trackRef().isNonnull() && icand->trackRef().isAvailable() ) {
     //      try {
-    if (  icand->pdgId() == 211 ) {
+    if (  icand->charge() != 0 ) {
       float tkpt = candPt; //icand->trackRef()->pt();
       sumTkPt += tkpt;
       //      bool inVtx0 = vtxmap[vtx]->count(icand);
