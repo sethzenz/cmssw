@@ -11,6 +11,8 @@
 #include "TMatrixDSym.h"
 #include "TMatrixDSymEigen.h"
 
+#include <algorithm>
+
 // ------------------------------------------------------------------------------------------
 const float large_val = std::numeric_limits<float>::max();
 
@@ -285,6 +287,268 @@ PileupJetIdentifier PileupJetIdAlgo::computeMva()
 	return PileupJetIdentifier(internalId_);
 }
 
+// ---- Added by SCZ for flashgg based on original computeIdVariables method using VertexCollection ----
+PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const pat::Jet * jet,
+							//							const reco::Vertex * vtx, 
+							const edm::Ptr<reco::Vertex> vtx,
+							const std::map<edm::Ptr<reco::Vertex>,edm::PtrVector<pat::PackedCandidate> >& vtxmap,
+							bool calculateMva) {
+
+  static std::atomic<int> printWarning{10};
+  //  typedef std::vector <pat::PackedCandidate> constituents_type;
+  //  typedef std::vector <pat::PackedCandidate>::iterator constituents_iterator;
+
+  // Assemble collection - not needed probably
+  //  reco::VertexCollection allvtx;
+  //  for (std::map<edm::Ptr<reco::Vertex>,edm::PtrVector<pat::PackedCandidate> >::iterator it = vtxmap.begin() ; it != vtxmap.end() ; it++) {
+  //    allvtx.push_back(it->first);
+  //  }
+
+  // initialize all variables to 0
+  resetVariables();
+
+  // double jec = jet->pt()/jet->correctedJet(0).pt();
+
+  //  constituents_type constituents = jet->getJetConstituents();
+
+
+  //  reco::PFCandidatePtr lLead, lSecond, lLeadNeut, lLeadEm, lLeadCh, lTrail;
+
+  edm::Ptr<pat::PackedCandidate> lLead, lSecond, lLeadNeut, lLeadEm, lLeadCh, lTrail;
+  std::vector<float> frac, fracCh, fracEm, fracNeut;
+  float cones[] = { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7 };
+  size_t ncones = sizeof(cones)/sizeof(float);
+
+  float * coneFracs[]     = { &internalId_.frac01_, &internalId_.frac02_, &internalId_.frac03_, &internalId_.frac04_,
+                              &internalId_.frac05_,  &internalId_.frac06_,  &internalId_.frac07_ };
+  float * coneEmFracs[]   = { &internalId_.emFrac01_, &internalId_.emFrac02_, &internalId_.emFrac03_, &internalId_.emFrac04_,
+                              &internalId_.emFrac05_, &internalId_.emFrac06_, &internalId_.emFrac07_ };
+  float * coneNeutFracs[] = { &internalId_.neutFrac01_, &internalId_.neutFrac02_, &internalId_.neutFrac03_, &internalId_.neutFrac04_,
+                              &internalId_.neutFrac05_, &internalId_.neutFrac06_, &internalId_.neutFrac07_ };
+  float * coneChFracs[]   = { &internalId_.chFrac01_, &internalId_.chFrac02_, &internalId_.chFrac03_, &internalId_.chFrac04_,
+                              &internalId_.chFrac05_, &internalId_.chFrac06_, &internalId_.chFrac07_ };
+  TMatrixDSym covMatrix(2); covMatrix = 0.;
+
+  //  reco::TrackRef impactTrack;
+  float jetPt = jet->correctedJet(0).pt(); // use uncorrected pt for shape variables
+  float sumPt = 0., sumPt2 = 0., sumTkPt = 0.,sumPtCh=0,sumPtNe = 0;
+  setPtEtaPhi(*jet,internalId_.jetPt_,internalId_.jetEta_,internalId_.jetPhi_); // use corrected pt for jet kinematics                                                       
+  internalId_.jetM_ = jet->mass();
+  internalId_.nvtx_ = vtxmap.size();
+
+  //  for(constituents_iterator it=constituents.begin(); it!=constituents.end(); ++it) {
+  for (unsigned int i = 0 ; i < jet->numberOfDaughters() ; i++) {
+    edm::Ptr<pat::PackedCandidate> icand = edm::Ptr<pat::PackedCandidate> ( jet->daughterPtr(i) );
+    float candPt = icand->pt();
+    float candPtFrac = candPt/jetPt;
+    float candDr   = reco::deltaR(*icand,*jet);
+    float candDeta = fabs( icand->eta() - jet->eta() );
+    float candDphi = reco::deltaPhi(*icand,*jet);
+    float candPtDr = candPt * candDr;
+    size_t icone = std::lower_bound(&cones[0],&cones[ncones],candDr) - &cones[0];
+
+    // all particles                                                                                                                                                   
+    if( lLead.isNull() || candPt > lLead->pt() ) {
+      lSecond = lLead;
+      lLead = icand;
+    } else if( (lSecond.isNull() || candPt > lSecond->pt()) && (candPt < lLead->pt()) ) {
+      lSecond = icand;
+    }
+
+    // average shapes                                                                                                                                                  
+    internalId_.dRMean_     += candPtDr;
+    internalId_.dR2Mean_    += candPtDr*candPtDr;
+    covMatrix(0,0) += candPt*candPt*candDeta*candDeta;
+    covMatrix(0,1) += candPt*candPt*candDeta*candDphi;
+    covMatrix(1,1) += candPt*candPt*candDphi*candDphi;
+    internalId_.ptD_ += candPt*candPt;
+    sumPt += candPt;
+    sumPt2 += candPt*candPt;
+
+    // single most energetic candiates and jet shape profiles                                                                                                          
+    frac.push_back(candPtFrac);
+    if( icone < ncones ) { *coneFracs[icone] += candPt; }
+
+    // neutrals                                                                                                                                                        
+    if( abs(icand->pdgId()) == 130) {
+      if (lLeadNeut.isNull() || candPt > lLeadNeut->pt()) { lLeadNeut = icand; }
+      internalId_.dRMeanNeut_ += candPtDr;
+      fracNeut.push_back(candPtFrac);
+      if( icone < ncones ) { *coneNeutFracs[icone] += candPt; }
+      internalId_.ptDNe_    += candPt*candPt;
+      sumPtNe               += candPt;
+    }
+    // EM candidated                                                                                                                                                   
+    if( icand->pdgId() == 22 ) {
+      if(lLeadEm.isNull() || candPt > lLeadEm->pt())  { lLeadEm = icand; }
+      internalId_.dRMeanEm_ += candPtDr;
+      fracEm.push_back(candPtFrac);
+      if( icone < ncones ) { *coneEmFracs[icone] += candPt; }
+      internalId_.ptDNe_    += candPt*candPt;
+      sumPtNe               += candPt;
+    }
+    // Charged  particles                                                                                                                                              
+    if(  icand->charge() != 0 ) {
+      if (lLeadCh.isNull() || candPt > lLeadCh->pt()) { lLeadCh = icand; }
+      internalId_.dRMeanCh_  += candPtDr;
+      internalId_.ptDCh_     += candPt*candPt;
+      fracCh.push_back(candPtFrac);
+      if( icone < ncones ) { *coneChFracs[icone] += candPt; }
+      sumPtCh                += candPt;
+    }
+    // beta and betastar                                                                                                                                               
+    //    if(  icand->trackRef().isNonnull() && icand->trackRef().isAvailable() ) {
+    //      try {
+    if (  icand->charge() != 0 ) {
+      float tkpt = candPt; //icand->trackRef()->pt();
+      sumTkPt += tkpt;
+      //      bool inVtx0 = vtxmap[vtx]->count(icand);
+	// 'classic' beta definition based on track-vertex association                                                                                     
+	//	bool inVtx0 = find( vtx->tracks_begin(), vtx->tracks_end(), reco::TrackBaseRef(icand->trackRef()) ) != vtx->tracks_end();
+      //	bool inVtx0 = false; // Gotta set this! SCZ
+      bool inAnyOther = false;
+      bool inVtx0 = std::count(vtxmap.at(vtx).begin(),vtxmap.at(vtx).end(),icand);
+      // alternative beta definition based on track-vertex distance of closest approach                                                                  
+      double dZ0 = fabs(icand->dz(vtx->position()));
+      double dZ = dZ0;
+	//	for(reco::VertexCollection::const_iterator  vi=allvtx.begin(); vi!=allvtx.end(); ++vi ) {
+      for (std::map<edm::Ptr<reco::Vertex>,edm::PtrVector<pat::PackedCandidate> >::const_iterator vi = vtxmap.begin() ; vi != vtxmap.end() ; vi++) {
+	const reco::Vertex & iv = *(vi->first);
+	if( iv.isFake() || iv.ndof() < 4 ) { continue; }
+	  // the primary vertex may have been copied by the user: check identity by position                                                         
+	  bool isVtx0  = (iv.position() - vtx->position()).r() < 0.02;
+	  // 'classic' beta definition: check if the track is associated with any vertex other than the primary one
+	  //	  for (unsigned int j = 0 ; j < vi->second->size(); j++) {
+	  //	    edm::Ptr<pat::PackedCandidate> acand
+	  //	  }
+	  if( ! isVtx0 && ! inAnyOther ) {
+	    inAnyOther = std::count(vi->second.begin(),vi->second.end(),icand);
+	  }
+	  // alternative beta: find closest vertex to the track                                                                                      
+	  dZ = std::min(dZ,fabs(icand->dz(iv.position())));
+	}
+	// classic beta/betaStar                                                                                                                           
+	if( inVtx0 && ! inAnyOther ) {
+	  internalId_.betaClassic_ += tkpt;
+	} else if( ! inVtx0 && inAnyOther ) {
+	  internalId_.betaStarClassic_ += tkpt;
+	}
+	// alternative beta/betaStar                                                                                                                       
+	if( dZ0 < 0.2 ) {
+	  internalId_.beta_ += tkpt;
+	} else if( dZ < 0.2 ) {
+	  internalId_.betaStar_ += tkpt;
+	}
+    }
+    // trailing candidate                                                                                                                                              
+    if( lTrail.isNull() || candPt < lTrail->pt() ) {
+      lTrail = icand;
+    }
+  }
+
+  // Finalize all variables                                                                                                                                                  
+  assert( lLead.isNonnull() );
+  
+  if ( lSecond.isNull() )   { lSecond   = lTrail; }
+  if ( lLeadNeut.isNull() ) { lLeadNeut = lTrail; }
+  if ( lLeadEm.isNull() )   { lLeadEm   = lTrail; }
+  if ( lLeadCh.isNull() )   { lLeadCh   = lTrail; }
+  //  impactTrack = lLeadCh->trackRef();
+  reco::Track impactTrack = lLeadCh->pseudoTrack();
+
+  internalId_.nCharged_    = jet->chargedMultiplicity();
+  internalId_.nNeutrals_   = jet->neutralMultiplicity();
+  internalId_.chgEMfrac_   = jet->chargedEmEnergy()    /jet->energy();
+  internalId_.neuEMfrac_   = jet->neutralEmEnergy()    /jet->energy();
+  internalId_.chgHadrfrac_ = jet->chargedHadronEnergy()/jet->energy();
+  internalId_.neuHadrfrac_ = jet->neutralHadronEnergy()/jet->energy();
+
+  //  if( impactTrackl() && impactTrack.isAvailable() ) {
+  // hmmm... will this always work?
+  internalId_.d0_ = fabs(impactTrack.dxy(vtx->position()));
+  internalId_.dZ_ = fabs(impactTrack.dz(vtx->position()));
+    //  } else {
+    //    if(printWarning-- > 0) { std::cerr << "WARNING : did not find any valid track reference attached to the jet " << std::endl; }
+    //  }
+  //  internalId_.nParticles_ = constituents.size();
+  internalId_.nParticles_ = jet->numberOfDaughters();
+
+  setPtEtaPhi(*lLead,internalId_.leadPt_,internalId_.leadEta_,internalId_.leadPhi_);
+  setPtEtaPhi(*lSecond,internalId_.secondPt_,internalId_.secondEta_,internalId_.secondPhi_);
+  setPtEtaPhi(*lLeadNeut,internalId_.leadNeutPt_,internalId_.leadNeutEta_,internalId_.leadNeutPhi_);
+  setPtEtaPhi(*lLeadEm,internalId_.leadEmPt_,internalId_.leadEmEta_,internalId_.leadEmPhi_);
+  setPtEtaPhi(*lLeadCh,internalId_.leadChPt_,internalId_.leadChEta_,internalId_.leadChPhi_);
+
+  std::sort(frac.begin(),frac.end(),std::greater<float>());
+  std::sort(fracCh.begin(),fracCh.end(),std::greater<float>());
+  std::sort(fracEm.begin(),fracEm.end(),std::greater<float>());
+  std::sort(fracNeut.begin(),fracNeut.end(),std::greater<float>());
+  assign(frac,    internalId_.leadFrac_,    internalId_.secondFrac_,    internalId_.thirdFrac_,    internalId_.fourthFrac_);
+  assign(fracCh,  internalId_.leadChFrac_,  internalId_.secondChFrac_,  internalId_.thirdChFrac_,  internalId_.fourthChFrac_);
+  assign(fracEm,  internalId_.leadEmFrac_,  internalId_.secondEmFrac_,  internalId_.thirdEmFrac_,  internalId_.fourthEmFrac_);
+  assign(fracNeut,internalId_.leadNeutFrac_,internalId_.secondNeutFrac_,internalId_.thirdNeutFrac_,internalId_.fourthNeutFrac_);
+
+  covMatrix(0,0) /= sumPt2;
+  covMatrix(0,1) /= sumPt2;
+  covMatrix(1,1) /= sumPt2;
+  covMatrix(1,0)  = covMatrix(0,1);
+  internalId_.etaW_ = sqrt(covMatrix(0,0));
+  internalId_.phiW_ = sqrt(covMatrix(1,1));
+  internalId_.jetW_ = 0.5*(internalId_.etaW_+internalId_.phiW_);
+  TVectorD eigVals(2); eigVals = TMatrixDSymEigen(covMatrix).GetEigenValues();
+  internalId_.majW_ = sqrt(fabs(eigVals(0)));
+  internalId_.minW_ = sqrt(fabs(eigVals(1)));
+  if( internalId_.majW_ < internalId_.minW_ ) { std::swap(internalId_.majW_,internalId_.minW_); }
+
+  internalId_.dRLeadCent_ = reco::deltaR(*jet,*lLead);
+  if( lSecond.isNonnull() ) { internalId_.dRLead2nd_  = reco::deltaR(*jet,*lSecond); }
+  internalId_.dRMean_     /= jetPt;
+  internalId_.dRMeanNeut_ /= jetPt;
+  internalId_.dRMeanEm_   /= jetPt;
+  internalId_.dRMeanCh_   /= jetPt;
+  internalId_.dR2Mean_    /= sumPt2;
+
+  for(size_t ic=0; ic<ncones; ++ic){
+    *coneFracs[ic]     /= jetPt;
+    *coneEmFracs[ic]   /= jetPt;
+    *coneNeutFracs[ic] /= jetPt;
+    *coneChFracs[ic]   /= jetPt;
+  }
+  //http://jets.physics.harvard.edu/qvg/                                                                                                                                     
+  double ptMean = sumPt/internalId_.nParticles_;
+  double ptRMS  = 0;
+  for(unsigned int i0 = 0; i0 < frac.size(); i0++) {ptRMS+=(frac[i0]-ptMean)*(frac[i0]-ptMean);}
+  ptRMS/=internalId_.nParticles_;
+  ptRMS=sqrt(ptRMS);
+
+  internalId_.ptMean_  = ptMean;
+  internalId_.ptRMS_   = ptRMS/jetPt;
+  internalId_.pt2A_    = sqrt( internalId_.ptD_     /internalId_.nParticles_)/jetPt;
+  internalId_.ptD_     = sqrt( internalId_.ptD_)    / sumPt;
+  internalId_.ptDCh_   = sqrt( internalId_.ptDCh_)  / sumPtCh;
+  internalId_.ptDNe_   = sqrt( internalId_.ptDNe_)  / sumPtNe;
+  internalId_.sumPt_   = sumPt;
+  internalId_.sumChPt_ = sumPtCh;
+  internalId_.sumNePt_ = sumPtNe;
+
+  if( sumTkPt != 0. ) {
+    internalId_.beta_     /= sumTkPt;
+    internalId_.betaStar_ /= sumTkPt;
+    internalId_.betaClassic_ /= sumTkPt;
+    internalId_.betaStarClassic_ /= sumTkPt;
+  } else {
+    assert( internalId_.beta_ == 0. && internalId_.betaStar_ == 0.&& internalId_.betaClassic_ == 0. && internalId_.betaStarClassic_ == 0. );
+  }
+
+  if( calculateMva ) {
+    runMva();
+  }
+
+  return PileupJetIdentifier(internalId_);
+}
+
+
+
 // ------------------------------------------------------------------------------------------
 PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, float jec, const reco::Vertex * vtx,
 							const reco::VertexCollection & allvtx,
@@ -297,9 +561,15 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 	// initialize all variables to 0
 	resetVariables();
 	
+	//	std::cout << " SCZ DEBUG just reset variables " << std::endl;
+	
 	// loop over constituents, accumulate sums and find leading candidates
 	//const pat::Jet * patjet = dynamic_cast<const pat::Jet *>(jet);
 	const reco::PFJet * pfjet = dynamic_cast<const reco::PFJet *>(jet);
+     
+	//        std::cout << " SCZ DEBUG just cast jet " << std::endl;
+
+
 	//assert( patjet != 0 || pfjet != 0 );
 	//if( patjet != 0 && jec == 0. ) { // if this is a pat jet and no jec has been passed take the jec from the object
 	//jec = patjet->pt()/patjet->correctedJet(0).pt();
@@ -308,8 +578,10 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 		jec = 1.;
 	}
 	//constituents_type constituents = pfjet ? pfjet->getPFConstituents() : patjet->getPFConstituents();
-	constituents_type constituents = pfjet->getPFConstituents();
-	
+        constituents_type constituents = pfjet->getPFConstituents();
+
+	//	std::cout << " SCZ DEBUG just got constituents " << std::endl;
+
 	reco::PFCandidatePtr lLead, lSecond, lLeadNeut, lLeadEm, lLeadCh, lTrail;
 	std::vector<float> frac, fracCh, fracEm, fracNeut;
 	float cones[] = { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7 };
@@ -330,9 +602,13 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 	setPtEtaPhi(*jet,internalId_.jetPt_,internalId_.jetEta_,internalId_.jetPhi_); // use corrected pt for jet kinematics
 	internalId_.jetM_ = jet->mass(); 
 	internalId_.nvtx_ = allvtx.size();
+
+	//	std::cout << " SCZ DEBUG just set nvtx " << std::endl;
+
 	
 	for(constituents_iterator it=constituents.begin(); it!=constituents.end(); ++it) {
-		reco::PFCandidatePtr & icand = *it;
+	  //	  std::cout << " SCZ DEBUG start of a constituent " << std::endl;
+	  reco::PFCandidatePtr & icand = *it;
 		float candPt = icand->pt();
 		float candPtFrac = candPt/jetPt;
 		float candDr   = reco::deltaR(**it,*jet);
@@ -402,37 +678,38 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 				double dZ0 = fabs(icand->trackRef()->dz(vtx->position()));
 				double dZ = dZ0;
 				for(reco::VertexCollection::const_iterator  vi=allvtx.begin(); vi!=allvtx.end(); ++vi ) {
-					const reco::Vertex & iv = *vi;
-					if( iv.isFake() || iv.ndof() < 4 ) { continue; }
-					// the primary vertex may have been copied by the user: check identity by position
-					bool isVtx0  = (iv.position() - vtx->position()).r() < 0.02;
-					// 'classic' beta definition: check if the track is associated with any vertex other than the primary one
-					if( ! isVtx0 && ! inAnyOther ) {
-						inAnyOther = find( iv.tracks_begin(), iv.tracks_end(), reco::TrackBaseRef(icand->trackRef()) ) != iv.tracks_end();
-					}
-					// alternative beta: find closest vertex to the track
-					dZ = std::min(dZ,fabs(icand->trackRef()->dz(iv.position())));
+				  const reco::Vertex & iv = *vi;
+				  if( iv.isFake() || iv.ndof() < 4 ) { continue; }
+				  // the primary vertex may have been copied by the user: check identity by position
+				  bool isVtx0  = (iv.position() - vtx->position()).r() < 0.02;
+				  // 'classic' beta definition: check if the track is associated with any vertex other than the primary one
+				  if( ! isVtx0 && ! inAnyOther ) {
+				    inAnyOther = find( iv.tracks_begin(), iv.tracks_end(), reco::TrackBaseRef(icand->trackRef()) ) != iv.tracks_end();
+				  }
+				  // alternative beta: find closest vertex to the track
+				  dZ = std::min(dZ,fabs(icand->trackRef()->dz(iv.position())));
 				}
 				// classic beta/betaStar
 				if( inVtx0 && ! inAnyOther ) {
-					internalId_.betaClassic_ += tkpt;
+				  internalId_.betaClassic_ += tkpt;
 				} else if( ! inVtx0 && inAnyOther ) {
-					internalId_.betaStarClassic_ += tkpt;
+				  internalId_.betaStarClassic_ += tkpt;
 				}
 				// alternative beta/betaStar
 				if( dZ0 < 0.2 ) {
-					internalId_.beta_ += tkpt;
+				  internalId_.beta_ += tkpt;
 				} else if( dZ < 0.2 ) {
-					internalId_.betaStar_ += tkpt;
+				  internalId_.betaStar_ += tkpt;
 				}
 			} catch (cms::Exception &e) {
-				if(printWarning-- > 0) { std::cerr << e << std::endl; }
+			  if(printWarning-- > 0) { std::cerr << e << std::endl; }
 			}
 		}
 		// trailing candidate
 		if( lTrail.isNull() || candPt < lTrail->pt() ) {
-			lTrail = icand; 
+		  lTrail = icand; 
 		}
+		//		std::cout << " SCZ DEBUG end of a constituent " << std::endl;
 	}
 	
 	// Finalize all variables

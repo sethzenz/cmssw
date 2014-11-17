@@ -8,12 +8,3 @@ fixedGridRhoFastjetAll = cms.EDProducer("FixedGridRhoProducerFastjet",
 )
 
 
-fixedGridRhoFastjetAllCalo = cms.EDProducer("FixedGridRhoProducerFastjet",
-    pfCandidatesTag = cms.InputTag("towerMaker"),
-    maxRapidity = cms.double(5.0),
-    gridSpacing = cms.double(0.55)
-)
-
-
-
-
