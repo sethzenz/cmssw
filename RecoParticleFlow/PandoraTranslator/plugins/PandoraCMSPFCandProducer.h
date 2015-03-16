@@ -290,7 +290,13 @@ private:
   edm::InputTag    inputTagGenParticles_;
   edm::InputTag    inputTagGeneralTracks_;
   //std::vector<std::string> mFileNames;
-  
+
+  // SCZ
+  edm::InputTag    inputTagSimTracks_;
+  edm::InputTag inputTagSimHGCHitsEE_;
+  edm::InputTag inputTagSimHGCHitsHEfront_;
+  edm::InputTag inputTagSimHGCHitsHEback_;
+
   // hash tables to translate back to CMSSW collection index from Pandora
   std::unordered_map<const void*,unsigned int> recHitMap;
   std::unordered_map<const void*,unsigned int> recTrackMap;
@@ -313,6 +319,28 @@ private:
   double ene_true,mass_true,pid_true,pT_true,charge_true;
   double first_layer,last_layer,first_layer_match,last_layer_match;
   int runno, eventno, lumi , nbPFOs;
+
+  # define GPMAX 100
+  TTree *clusterTree;
+  float energy, trackP, eta, phi, sumEneGp, sumEneRecHit;
+  int pfPdgId, trackSeeded;
+  int ngp;
+  float gpEneFrac[GPMAX];
+  float gpPdgId[GPMAX];
+  float gpEneTotal[GPMAX];
+  float mipFraction;
+  float dCosR;
+  float clusterRms;
+  float innerLayerRadLengths;
+  float nRadiationLengths90;
+  float showerMaxRadLengths;
+  float energyAboveHighRadLengths;
+  float energyAboveHighRadLengthsFrac;
+  float radial90;
+  float showerProfileStart;
+  float showerProfileChi2;
+
+  
 
   int isDecBefCal;
   double RminVtxDaughter[2];
