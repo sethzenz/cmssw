@@ -98,7 +98,7 @@
                 <algorithm type = "ConeBasedMerging">
                     <algorithm type = "TrackClusterAssociationFast"/>
                 </algorithm>
-                <algorithm type = "MipPhotonSeparation">
+                <algorithm type = "CMSMipPhotonSeparation">
                     <algorithm type = "TrackClusterAssociationFast"/>
                 </algorithm>
                 <algorithm type = "SoftClusterMergingFast">
@@ -112,7 +112,7 @@
     </algorithm>
 
     <!-- Reclustering algorithms run multiple clustering algorithms -->
-    <algorithm type = "SplitTrackAssociations" instance = "SplitTrackAssociations1">
+    <algorithm type = "CMSSplitTrackAssociations" instance = "SplitTrackAssociations1">
         <clusteringAlgorithms>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering1">
                 <TanConeAngleFine>0.24</TanConeAngleFine>
@@ -258,7 +258,7 @@
                 <algorithm type = "ConeBasedMerging">
                     <algorithm type = "TrackClusterAssociationFast"/>
                 </algorithm>
-                <algorithm type = "MipPhotonSeparation">
+                <algorithm type = "CMSMipPhotonSeparation">
                     <algorithm type = "TrackClusterAssociationFast"/>
                 </algorithm>
                 <algorithm type = "SoftClusterMergingFast">
@@ -273,7 +273,7 @@
         <algorithm type = "ForcedClustering" description = "ForcedClustering"/>
     </algorithm>
 
-    <algorithm type = "SplitMergedClusters" instance = "SplitMergedClusters1">
+    <algorithm type = "CMSSplitMergedClusters" instance = "SplitMergedClusters1">
         <clusteringAlgorithms>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering1"/>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering2"/>
@@ -295,11 +295,11 @@
         <algorithm type = "ForcedClustering" description = "ForcedClustering"/>
     </algorithm>
 
-    <algorithm type = "TrackDrivenMerging">
+    <algorithm type = "CMSTrackDrivenMerging">
         <algorithm type = "TrackClusterAssociationFast" description = "TrackClusterAssociation"></algorithm>
     </algorithm>
 
-    <algorithm type = "ResolveTrackAssociations">
+    <algorithm type = "CMSResolveTrackAssociations">
         <clusteringAlgorithms>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering1"/>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering2"/>
@@ -321,10 +321,10 @@
         <algorithm type = "ForcedClustering" description = "ForcedClustering"/>
     </algorithm>
 
-    <algorithm type = "SplitTrackAssociations" instance = "SplitTrackAssociations1"/>
-    <algorithm type = "SplitMergedClusters" instance = "SplitMergedClusters1"/>
+    <algorithm type = "CMSSplitTrackAssociations" instance = "SplitTrackAssociations1"/>
+    <algorithm type = "CMSSplitMergedClusters" instance = "SplitMergedClusters1"/>
 
-    <algorithm type = "TrackDrivenAssociation">
+    <algorithm type = "CMSTrackDrivenAssociation">
         <clusteringAlgorithms>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering1"/>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering2"/>
@@ -344,10 +344,10 @@
         <UsingOrderedAlgorithms>true</UsingOrderedAlgorithms>
     </algorithm>
 
-    <algorithm type = "SplitTrackAssociations" instance = "SplitTrackAssociations1"/>
-    <algorithm type = "SplitMergedClusters" instance = "SplitMergedClusters1"/>
+    <algorithm type = "CMSSplitTrackAssociations" instance = "SplitTrackAssociations1"/>
+    <algorithm type = "CMSSplitMergedClusters" instance = "SplitMergedClusters1"/>
 
-    <algorithm type = "ExitingTrack">
+    <algorithm type = "CMSExitingTrack">
         <clusteringAlgorithms>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering1"/>
             <algorithm type = "ConeClusteringFast" instance = "Reclustering2"/>
@@ -385,14 +385,14 @@
         <PfoTrackListName>PfoCreation</PfoTrackListName>
         <trackClusterAssociationAlgorithms>
             <algorithm type = "TrackClusterAssociationFast"/>
-            <algorithm type = "LoopingTrackAssociation"/>
+            <algorithm type = "CMSLoopingTrackAssociation"/>
             <algorithm type = "TrackRecovery"/>
-            <algorithm type = "TrackRecoveryHelix"/>
-            <algorithm type = "TrackRecoveryInteractions"/>
+            <algorithm type = "CMSTrackRecoveryHelix"/>
+            <algorithm type = "CMSTrackRecoveryInteractions"/>
         </trackClusterAssociationAlgorithms>
     </algorithm>
 
-    <algorithm type = "MainFragmentRemovalFast"/>
+    <algorithm type = "CMSMainFragmentRemovalFast"/>
     <algorithm type = "NeutralFragmentRemovalFast"/>
     <algorithm type = "PhotonFragmentRemovalFast"/>
 

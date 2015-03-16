@@ -3,8 +3,11 @@
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSPseudoLayerPlugin.h"
 #include "LCContent.h"
 #include "LCContentFast.h"
+#include "RecoParticleFlow/PandoraTranslator/interface/CMSAlgorithms.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSTemplateAlgorithm.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSGlobalHadronCompensationPlugin.h"
+#include "RecoParticleFlow/PandoraTranslator/interface/MuonCoilCorrection.h"
+
 //#include "PandoraMonitoringApi.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -89,6 +92,7 @@ namespace cms_content {
     LC_PARTICLE_ID_LIST(PANDORA_REGISTER_PARTICLE_ID);
 
     PANDORA_REGISTER_ENERGY_CORRECTION("CMSGlobalHadronCompensation",          pandora::HADRONIC,     cms_content::GlobalHadronCompensation);
+    PANDORA_REGISTER_ENERGY_CORRECTION("CMSMuonCoilCorrection",                pandora::HADRONIC,     cms_content::MuonCoilCorrection);
 
     PANDORA_RETURN_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetPseudoLayerPlugin(pandora, new cms_content::CMSPseudoLayerPlugin));
     PANDORA_RETURN_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetShowerProfilePlugin(pandora, new lc_content::LCShowerProfilePlugin));
@@ -1849,6 +1853,8 @@ PandoraCMSPFCandProducer::beginLuminosityBlock(edm::LuminosityBlock const& iLumi
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, LCContent::RegisterAlgorithms(*m_pPandora));
 
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, LCContentFast::RegisterAlgorithms(*m_pPandora));
+
+  PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, CMSAlgorithms::RegisterAlgorithms(*m_pPandora));
 
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, cms_content::RegisterBasicPlugins(*m_pPandora));
 
