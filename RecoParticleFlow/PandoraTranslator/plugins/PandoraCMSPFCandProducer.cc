@@ -8,8 +8,11 @@
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSPseudoLayerPlugin.h"
 #include "LCContent.h"
 #include "LCContentFast.h"
+#include "RecoParticleFlow/PandoraTranslator/interface/CMSAlgorithms.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSTemplateAlgorithm.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSGlobalHadronCompensationPlugin.h"
+#include "RecoParticleFlow/PandoraTranslator/interface/MuonCoilCorrection.h"
+
 //#include "PandoraMonitoringApi.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -109,6 +112,7 @@ namespace cms_content {
     LC_PARTICLE_ID_LIST(PANDORA_REGISTER_PARTICLE_ID);
 
     PANDORA_REGISTER_ENERGY_CORRECTION("CMSGlobalHadronCompensation",          pandora::HADRONIC,     cms_content::GlobalHadronCompensation);
+    PANDORA_REGISTER_ENERGY_CORRECTION("CMSMuonCoilCorrection",                pandora::HADRONIC,     cms_content::MuonCoilCorrection);
 
     PANDORA_RETURN_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetPseudoLayerPlugin(pandora, new cms_content::CMSPseudoLayerPlugin));
     PANDORA_RETURN_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetShowerProfilePlugin(pandora, new lc_content::LCShowerProfilePlugin));
@@ -708,6 +712,8 @@ void PandoraCMSPFCandProducer::prepareTrack(edm::Event& iEvent){ // function to 
     const reco::PFRecTrack * pftrack = &(*tkRefCollection)[i];
     const reco::TrackRef track = pftrack->trackRef();
     
+    //std::cout << "got track with algo == " << track->algo() << std::endl;
+
     //For the d0 = -dxy
     trackParameters.m_d0 = track->d0() * 10. ; //in mm
     //For the z0
@@ -1109,7 +1115,7 @@ void PandoraCMSPFCandProducer::ProcessRecHits(const reco::PFRecHit* rh, unsigned
     caloHitParameters.m_nCellRadiationLengths = calib.nCellRadiationLengths[layer];
     caloHitParameters.m_nCellInteractionLengths = calib.nCellInteractionLengths[layer];
     caloHitParameters.m_isDigital = false;
-    caloHitParameters.m_isInOuterSamplingLayer = false;
+    caloHitParameters.m_isInOuterSamplingLayer = ( calib.m_id==ForwardSubdetector::HGCHEB && layer == nHGChebLayers ) ;
     caloHitParameters.m_pParentAddress = (void *) rh;
     recHitMap.emplace((void*)rh,index); //associate parent address with collection index
     
@@ -2233,6 +2239,8 @@ PandoraCMSPFCandProducer::beginLuminosityBlock(edm::LuminosityBlock const& iLumi
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, LCContent::RegisterAlgorithms(*m_pPandora));
 
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, LCContentFast::RegisterAlgorithms(*m_pPandora));
+
+  PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, CMSAlgorithms::RegisterAlgorithms(*m_pPandora));
 
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, cms_content::RegisterBasicPlugins(*m_pPandora));
 
