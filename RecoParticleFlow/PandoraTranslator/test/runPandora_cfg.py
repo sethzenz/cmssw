@@ -36,7 +36,7 @@ process.TrackAssociatorRecord = cms.ESSource("EmptyESSource",
 )
 process.load('SimTracker.TrackAssociation.quickTrackAssociatorByHits_cfi')
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(2) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(10) )
 
 # this is for the event display 
 #process.EveService = cms.Service("EveService")
@@ -66,7 +66,7 @@ process.source = cms.Source("PoolSource",
         #'file:/tmp/lgray/step3.root'
         #'file:simple_jets.root'
         #'file:/tmp/lgray/6EC19337-A7AE-E411-999E-0025905A613C.root'
-        '/store/cmst3/group/hgcal/CMSSW/Single130-FixE_CMSSW_6_2_0_SLHC23_patch2/Events_130_20_1.root'
+        '/store/relval/CMSSW_6_2_0_SLHC23_patch2/RelValQCD_Pt_80_120_14TeV/GEN-SIM-RECO/PH2_1K_FB_V6_UPGHGCalV5-v1/00000/8AFB58C8-37AE-E411-BD23-0025905A6122.root'
     )
 )
 
