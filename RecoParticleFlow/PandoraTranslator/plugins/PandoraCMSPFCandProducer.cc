@@ -15,6 +15,9 @@
 
 //#include "PandoraMonitoringApi.h"
 
+// GIGADEBUG TEST
+//#include "Managers/PluginManager.h"
+
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "DataFormats/EcalDetId/interface/EcalSubdetector.h"
@@ -89,6 +92,16 @@ using namespace reco;
 using namespace pandora;  
 using namespace lc_content;
 using namespace cms_content;
+
+
+// SCZ utility stuffs
+typedef std::pair<float, float> HitEnergyDistance;
+typedef std::vector<HitEnergyDistance> HitEnergyDistanceVector;
+
+bool SortHitsByDistance(const HitEnergyDistance &lhs, const HitEnergyDistance &rhs)
+{
+  return (lhs.second < rhs.second);
+}
 
 template<typename A, typename B>
 std::pair<B,A> flip_pair(const std::pair<A,B> &p)
@@ -1331,9 +1344,12 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
         //ene_had = pCluster->GetHadronicEnergy();
         // hits
 
+	const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
 	mipFraction = pCluster->GetMipFraction();
 	dCosR = 0.;
 	clusterRms = 0.;
+
+	const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
 
 	if (clusterFitResult.IsFitSuccessful()) {
 	  dCosR = clusterFitResult.GetRadialDirectionCosine();
@@ -1348,13 +1364,16 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 
 	// Calculate properties of longitudinal shower profile: layer90 and shower max layer                                                                                           
 	bool foundLayer90(false);
-	float layer90EnergySum(0.f), showerMaxRadLengths(0.f), energyAboveHighRadLengths(0.f);
-	float nRadiationLengths(0.f), innerLayerRadLengths(0.f), nRadiationLengths90(0.f), nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+	float layer90EnergySum(0.f), /*showerMaxRadLengths(0.f),*/ energyAboveHighRadLengths(0.f);
+	float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+	innerLayerRadLengths = 0.;
+	nRadiationLengths90  = 0.;
 	HitEnergyDistanceVector hitEnergyDistanceVector;
 
 	const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
 	const unsigned int innerPseudoLayer(pCluster->GetInnerPseudoLayer());
-	const unsigned int firstPseudoLayer(this->GetPandora().GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+	//	const unsigned int firstPseudoLayer(m_pPandora->GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+	const unsigned int firstPseudoLayer = 1; // GIGADEBUG TEST
 
 	for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
 	  {
@@ -1417,11 +1436,12 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 	  }
 
 	// Longitudinal shower profile properties                                                                                                                                      
-	const float energyAboveHighRadLengthsFrac((totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f);
+	energyAboveHighRadLengthsFrac = (totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f;
 
 	// Transverse shower profile properties                                                                                                                                        
 	std::sort(hitEnergyDistanceVector.begin(), hitEnergyDistanceVector.end(), SortHitsByDistance);
-	float radial90EnergySum(0.f), radial90(std::numeric_limits<float>::max());
+	float radial90EnergySum(0.f);
+	radial90 = std::numeric_limits<float>::max();
 
 	for (HitEnergyDistanceVector::const_iterator iter = hitEnergyDistanceVector.begin(), iterEnd = hitEnergyDistanceVector.end(); iter != iterEnd; ++iter)
 	  {
@@ -1433,10 +1453,10 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 		break;
 	      }
 	  }
-
+	
 	// Explicit shower profile properties                                                                                                                                          
-	showerProfileStart = pCluster->GetShowerProfileStart(this->GetPandora());
-	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(this->GetPandora()));
+	showerProfileStart = pCluster->GetShowerProfileStart(*m_pPandora);
+	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
 
 
 
