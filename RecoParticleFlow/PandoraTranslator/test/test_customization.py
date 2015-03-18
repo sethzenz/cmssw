@@ -22,7 +22,7 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(100)
+    input = cms.untracked.int32(1000)
 )
 
 # Input source
@@ -76,6 +76,8 @@ process.schedule = cms.Schedule(process.raw2digi_step,process.L1Reco_step,proces
 # customisation of the process.
 from RecoParticleFlow.PandoraTranslator.customizeHGCalPandora_cff import cust_2023HGCalPandora_common
 process = cust_2023HGCalPandora_common(process)
+
+process.pandorapfanew.inputconfigfile = cms.FileInPath('RecoParticleFlow/PandoraTranslator/data/PandoraSettingsCheatedNeutrals_cms.xml')
 
 # Automatic addition of the customisation function from SLHCUpgradeSimulations.Configuration.combinedCustoms
 #from SLHCUpgradeSimulations.Configuration.combinedCustoms import cust_2023HGCalMuon 
