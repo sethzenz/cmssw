@@ -1,3 +1,8 @@
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
+
 #include "PandoraCMSPFCandProducer.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSBFieldPlugin.h"
 #include "RecoParticleFlow/PandoraTranslator/interface/CMSPseudoLayerPlugin.h"
@@ -9,6 +14,8 @@
 #include "RecoParticleFlow/PandoraTranslator/interface/MuonCoilCorrection.h"
 
 //#include "PandoraMonitoringApi.h"
+
+#include "Managers/PluginManager.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -85,6 +92,31 @@ using namespace pandora;
 using namespace lc_content;
 using namespace cms_content;
 
+
+// SCZ utility stuffs
+typedef std::pair<float, float> HitEnergyDistance;
+typedef std::vector<HitEnergyDistance> HitEnergyDistanceVector;
+
+bool SortHitsByDistance(const HitEnergyDistance &lhs, const HitEnergyDistance &rhs)
+{
+  return (lhs.second < rhs.second);
+}
+
+template<typename A, typename B>
+std::pair<B,A> flip_pair(const std::pair<A,B> &p)
+{
+  return std::pair<B,A>(p.second, p.first);
+}
+
+template<typename A, typename B>
+std::multimap<B,A> flip_map(const std::map<A,B> &src)
+{
+  std::multimap<B,A> dst;
+  std::transform(src.begin(), src.end(), std::inserter(dst, dst.begin()),
+		 flip_pair<A,B>);
+  return dst;
+}
+
 namespace cms_content {
   pandora::StatusCode RegisterBasicPlugins(const pandora::Pandora &pandora)
   {
@@ -122,6 +154,11 @@ PandoraCMSPFCandProducer::PandoraCMSPFCandProducer(const edm::ParameterSet& iCon
   //    produces<reco::PFCandidateElectronExtraCollection>(electronExtraOutputCol_);
   //    produces<reco::PFCandidatePhotonExtraCollection>(photonExtraOutputCol_);
   
+  inputTagSimTracks_ = iConfig.getUntrackedParameter<InputTag>("simTracks",InputTag("g4SimHits"));
+  inputTagSimHGCHitsEE_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsEE",InputTag("g4SimHits:HGCHitsEE"));
+  inputTagSimHGCHitsHEback_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsHEback",InputTag("g4SimHits:HGCHitsHEback"));
+  inputTagSimHGCHitsHEfront_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsHEfront",InputTag("g4SimHits:HGCHitsHEfront"));
+
   inputTagHGCrechit_ = iConfig.getParameter<InputTag>("HGCrechitCollection");
   inputTagGeneralTracks_ = iConfig.getParameter<InputTag>("generaltracks");
   inputTagtPRecoTrackAsssociation_ = iConfig.getParameter<InputTag>("tPRecoTrackAsssociation");
@@ -148,6 +185,8 @@ PandoraCMSPFCandProducer::~PandoraCMSPFCandProducer()
    // do anything here that needs to be done at desctruction time
    // (e.g. close files, deallocate resources etc.)
    
+  // SCZ NEIN
+  /*
   if(debugHisto){
     delete m_hitEperLayer_EM[ForwardSubdetector::HGCEE];
     delete m_hitEperLayer_EM[ForwardSubdetector::HGCHEF];
@@ -156,6 +195,7 @@ PandoraCMSPFCandProducer::~PandoraCMSPFCandProducer()
     delete m_hitEperLayer_HAD[ForwardSubdetector::HGCHEF];
     delete m_hitEperLayer_HAD[ForwardSubdetector::HGCHEB]; 
   }
+  */
 }
 
 
@@ -167,7 +207,8 @@ PandoraCMSPFCandProducer::~PandoraCMSPFCandProducer()
 void PandoraCMSPFCandProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
 
-  if(debugHisto) resetVariables();
+  // SCZ NEIN
+  //  if(debugHisto) resetVariables();  
 
   if(debugPrint) std::cout << "Analyzing events" << std::endl ; 
 
@@ -177,7 +218,7 @@ void PandoraCMSPFCandProducer::produce(edm::Event& iEvent, const edm::EventSetup
   preparemcParticle(iEvent); //put before prepareHits() to have mc info, for mip calib check
   prepareHits(iEvent);
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=,PandoraApi::ProcessEvent(*m_pPandora));
-  if(debugPrint || debugHisto) preparePFO(iEvent); //not necessary for production
+  //  if(debugPrint || debugHisto) preparePFO(iEvent); //not necessary for production // SCZ NEIN
   
   edm::Handle<reco::PFRecHitCollection> HGCRecHitHandle;
   iEvent.getByLabel(inputTagHGCrechit_, HGCRecHitHandle);
@@ -913,7 +954,9 @@ void PandoraCMSPFCandProducer::prepareHits( edm::Event& iEvent)
     else continue;
   }
 
-  if(debugHisto){
+  // SCZ nein
+  if (false) {
+    //  if(debugHisto){
     h_sumCaloE->Fill(sumCaloEnergy);
     h_sumCaloEM->Fill(sumCaloEnergyEM);
     h_sumCaloHad->Fill(sumCaloEnergyHAD);
@@ -1048,11 +1091,13 @@ void PandoraCMSPFCandProducer::ProcessRecHits(const reco::PFRecHit* rh, unsigned
     TVector3 hit3v(xf,yf,zf);
     double hitEta = hit3v.PseudoRapidity();
     double hitPhi = hit3v.Phi();
-    if(debugHisto){
+    //    if(debugHisto){ // SCZ NEIN
+    if (false) {
       h_hit_Eta -> Fill(hitEta);
       h_hit_Phi -> Fill(hitPhi);
     }
-    if (debugHisto && std::fabs(hitEta-m_firstMCpartEta) < 0.05 && std::fabs(hitPhi-m_firstMCpartPhi) < 0.05) {
+    //    if (debugHisto && std::fabs(hitEta-m_firstMCpartEta) < 0.05 && std::fabs(hitPhi-m_firstMCpartPhi) < 0.05) {
+    if (false) {
        h_MIP[calib.m_id] -> Fill(caloHitParameters.m_mipEquivalentEnergy.Get());
        h_MIP_Corr[calib.m_id] -> Fill(caloHitParameters.m_mipEquivalentEnergy.Get()*angleCorrectionMIP);
     }
@@ -1066,7 +1111,9 @@ void PandoraCMSPFCandProducer::ProcessRecHits(const reco::PFRecHit* rh, unsigned
       sumCaloEnergyEM += caloHitParameters.m_electromagneticEnergy.Get();
       sumCaloEnergyHAD += caloHitParameters.m_hadronicEnergy.Get();
     }
-    if(debugHisto){
+    // SCZ NEIN
+    if (false ){ 
+      //      if(debugHisto){
       m_hitEperLayer_EM[calib.m_id][layer] += caloHitParameters.m_electromagneticEnergy.Get();
       m_hitEperLayer_HAD[calib.m_id][layer] += caloHitParameters.m_hadronicEnergy.Get();
 
@@ -1116,7 +1163,7 @@ void PandoraCMSPFCandProducer::preparemcParticle(edm::Event& iEvent){ // functio
 
   edm::Handle<std::vector<reco::GenParticle> > genpart;
   iEvent.getByLabel(inputTagGenParticles_,genpart);
-  
+
    const GenParticle * firstMCp = &(*genpart)[0];
    if (firstMCp) {
       m_firstMCpartEta = firstMCp->eta();
@@ -1305,7 +1352,129 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
         //ene_em  = pCluster->GetElectromagneticEnergy();
         //ene_had = pCluster->GetHadronicEnergy();
         // hits
-        const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
+
+	const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
+	mipFraction = pCluster->GetMipFraction();
+	dCosR = 0.;
+	clusterRms = 0.;
+
+	const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
+
+	if (clusterFitResult.IsFitSuccessful()) {
+	  dCosR = clusterFitResult.GetRadialDirectionCosine();
+	  clusterRms = clusterFitResult.GetRms();
+	}
+
+	const CartesianVector &clusterDirection(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+						pCluster->GetFitToAllHitsResult().GetDirection() : pCluster->GetInitialDirection());
+
+	const CartesianVector &clusterIntercept(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+						pCluster->GetFitToAllHitsResult().GetIntercept() : CartesianVector(0.f, 0.f, 0.f));
+
+	// Calculate properties of longitudinal shower profile: layer90 and shower max layer                                                                                           
+	bool foundLayer90(false);
+	float layer90EnergySum(0.f), /*showerMaxRadLengths(0.f),*/ energyAboveHighRadLengths(0.f);
+	float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+	innerLayerRadLengths = 0.;
+	nRadiationLengths90  = 0.;
+	HitEnergyDistanceVector hitEnergyDistanceVector;
+
+	const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
+	const unsigned int innerPseudoLayer(pCluster->GetInnerPseudoLayer());
+	const unsigned int firstPseudoLayer(m_pPandora->GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+
+	for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
+	  {
+	    OrderedCaloHitList::const_iterator iter = orderedCaloHitList.find(iLayer);
+
+	    if ((orderedCaloHitList.end() == iter) || (iter->second->empty()))
+	      {
+		nRadiationLengths += nRadiationLengthsInLastLayer;
+		continue;
+	      }
+
+	    // Extract information from the calo hits                                                                                                                                  
+	    float energyInLayer(0.f);
+	    float nRadiationLengthsInLayer(0.f);
+
+	    for (CaloHitList::const_iterator hitIter = iter->second->begin(), hitIterEnd = iter->second->end(); hitIter != hitIterEnd; ++hitIter)
+	      {
+		float cosOpeningAngle(std::fabs((*hitIter)->GetCellNormalVector().GetCosOpeningAngle(clusterDirection)));
+		cosOpeningAngle = std::max(cosOpeningAngle, 0.3f); // ATTN Hard-coded default value of configurable parameter in particle id plugin                                    
+
+		const float hitEnergy((*hitIter)->GetElectromagneticEnergy());
+		energyInLayer += hitEnergy;
+		nRadiationLengthsInLayer += (*hitIter)->GetNCellRadiationLengths() / cosOpeningAngle;
+
+		const float radialDistance(((*hitIter)->GetPositionVector() - clusterIntercept).GetCrossProduct(clusterDirection).GetMagnitude());
+		hitEnergyDistanceVector.push_back(HitEnergyDistance(hitEnergy, radialDistance));
+	      }
+
+	    layer90EnergySum += energyInLayer;
+	    nRadiationLengthsInLayer /= static_cast<float>(iter->second->size());
+	    nRadiationLengthsInLastLayer = nRadiationLengthsInLayer;
+	    nRadiationLengths += nRadiationLengthsInLayer;
+
+	    // Number of radiation lengths before cluster start                                                                                                                          
+	    if (innerPseudoLayer == iLayer)
+	      {
+		nRadiationLengths *= static_cast<float>(innerPseudoLayer + 1 - firstPseudoLayer);
+		innerLayerRadLengths = nRadiationLengths;
+	      }
+
+	    // Number of radiation lengths before longitudinal layer90                                                                                                                 
+	    if (!foundLayer90 && (layer90EnergySum > 0.9f * totalElectromagneticEnergy))
+	      {
+		foundLayer90 = true;
+		nRadiationLengths90 = nRadiationLengths;
+	      }
+
+	    // Number of radiation lengths before shower max layer                                                                                                                     
+	    if (energyInLayer > maxEnergyInlayer)
+	      {
+		showerMaxRadLengths = nRadiationLengths;
+		maxEnergyInlayer = energyInLayer;
+	      }
+
+	    // Energy above specified "high" number of radiation lengths                                                                                                               
+	    if (nRadiationLengths > 40.f) // ATTN Hard-coded default value of configurable parameter in particle id plugin                                                             
+	      {
+		energyAboveHighRadLengths += energyInLayer;
+	      }
+	  }
+
+	// Longitudinal shower profile properties                                                                                                                                      
+	energyAboveHighRadLengthsFrac = (totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f;
+
+	// Transverse shower profile properties                                                                                                                                        
+	std::sort(hitEnergyDistanceVector.begin(), hitEnergyDistanceVector.end(), SortHitsByDistance);
+	float radial90EnergySum(0.f);
+	radial90 = std::numeric_limits<float>::max();
+
+	for (HitEnergyDistanceVector::const_iterator iter = hitEnergyDistanceVector.begin(), iterEnd = hitEnergyDistanceVector.end(); iter != iterEnd; ++iter)
+	  {
+	    radial90EnergySum += iter->first;
+	    //	    std::cout << " GIGADEBUG radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << std::endl;
+
+	    if (radial90EnergySum > 0.9f * totalElectromagneticEnergy)
+	      {
+		radial90 = iter->second;
+		break;
+	      }
+	  }
+
+	if (radial90 == std::numeric_limits<float>::max()) {
+	  std::cout << " SCZ GIGADEBUG radial90 not set radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << totalElectromagneticEnergy
+		    << " pCluster->GetElectromagneticEnergy() " << pCluster->GetElectromagneticEnergy() << std::endl;
+	}
+	
+	// Explicit shower profile properties                                                                                                                                          
+	showerProfileStart = pCluster->GetShowerProfileStart(*m_pPandora);
+	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
+
+
+
+	//        const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
         CaloHitList pCaloHitList;
         orderedCaloHitList.GetCaloHitList(pCaloHitList);
     
@@ -1486,7 +1655,99 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 
   const pandora::PfoList *pPfoList = NULL;
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::GetCurrentPfoList(*m_pPandora, pPfoList));
-  
+
+
+  // SCZ needed matching collections
+  edm::Handle<std::vector<PCaloHit> > HGCHitsEE;
+  edm::Handle<std::vector<PCaloHit> > HGCHitsHEback;
+  edm::Handle<std::vector<PCaloHit> > HGCHitsHEfront;
+  iEvent.getByLabel(inputTagSimHGCHitsEE_,HGCHitsEE);
+  iEvent.getByLabel(inputTagSimHGCHitsHEback_,HGCHitsHEback);
+  iEvent.getByLabel(inputTagSimHGCHitsHEfront_,HGCHitsHEfront);
+  std::vector<std::vector<PCaloHit> > theHGCHits;
+  theHGCHits.resize(3);
+  theHGCHits[0].insert(theHGCHits[0].end(),HGCHitsEE->begin(),HGCHitsEE->end());
+  theHGCHits[1].insert(theHGCHits[1].end(),HGCHitsHEfront->begin(),HGCHitsHEfront->end());
+  theHGCHits[2].insert(theHGCHits[2].end(),HGCHitsHEback->begin(),HGCHitsHEback->end());
+  edm::Handle<std::vector<SimTrack> > simTk;
+  edm::Handle<std::vector<SimVertex> > simVtx;
+  iEvent.getByLabel(inputTagSimTracks_,simTk);
+  iEvent.getByLabel(inputTagSimTracks_,simVtx);
+  std::vector<SimTrack> theSimTracks;
+  std::vector<SimVertex> theSimVertexes;
+  theSimTracks.insert(theSimTracks.end(),simTk->begin(),simTk->end());
+  theSimVertexes.insert(theSimVertexes.end(),simVtx->begin(),simVtx->end());
+
+
+  edm::Handle<std::vector<reco::GenParticle> > genpart;
+  iEvent.getByLabel(inputTagGenParticles_,genpart);
+
+  edm::Handle<std::vector<int> > genBarcodes;
+  iEvent.getByLabel(inputTagGenParticles_,genBarcodes);
+
+
+  // SCZ needed geometry for matching
+  std::vector<const HGCalGeometry*> geom;
+  geom.resize(3);
+  geom[0] = hgceeGeoHandle.product();
+  geom[1] = hgchefGeoHandle.product();
+  geom[2] = hgchebGeoHandle.product();
+
+  std::unordered_map<int,int> geantTrackIdToPdgId(theSimTracks.size());
+  std::unordered_map<int,float> geantTrackIdToSimTrackEnergy(theSimTracks.size());
+  std::unordered_map<int,float> geantTrackIdToStartingRadius(theSimTracks.size());
+
+  for (unsigned int isimtk = 0; isimtk < theSimTracks.size(); isimtk++){
+    int gid = (int)theSimTracks[isimtk].trackId();
+    geantTrackIdToSimTrackEnergy[gid] = theSimTracks[isimtk].trackerSurfaceMomentum().E();
+    geantTrackIdToPdgId[gid] = theSimTracks[isimtk].type();
+    //    unsigned int vi = theSimTracks[isimtk].vertIndex();
+    //    const math::XYZTLorentzVectorD start_pos = theSimVertexes[vi].position();
+    //    geantTrackIdToStartingRadius[gid] = start_pos.R();
+    geantTrackIdToStartingRadius[gid] = -1.;
+    for (unsigned int igen = 0 ; igen < genBarcodes->size() ; igen++) {
+      if (genBarcodes->at(igen) == theSimTracks[isimtk].genpartIndex()) {
+	geantTrackIdToStartingRadius[gid] = genpart->at(igen).vertex().rho();
+      }
+    }
+
+    //    std::cout << " SCZ GIGADEBUG gid " << gid << " r " << geantTrackIdToStartingRadius[gid] << std::endl;
+  }
+
+  // size is just an upper bound here
+  std::unordered_multimap<uint32_t,std::pair<unsigned,unsigned> > recoDetIdToSimHitIndex(theHGCHits[0].size() + theHGCHits[1].size() + theHGCHits[2].size()); 
+
+  //  for(std::vector<PCaloHit>::iterator hit_it = theHGCHits[i].begin(); hit_it != theHGCHits[i].end(); ++hit_it)
+  for (unsigned int i = 0 ; i < 3 ; i++) {
+
+    uint32_t mySubDet(ForwardSubdetector::HGCEE);                                                                                                                          
+    if(i==1) mySubDet=ForwardSubdetector::HGCHEF;                                                                                                                          
+    else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;                                                                                                                     
+    const HGCalTopology &topo=geom[i]->topology();                                                                                                                         
+    const HGCalDDDConstants &dddConst=topo.dddConstants();                                                                                                                 
+
+    for (unsigned int j = 0 ; j < theHGCHits[i].size() ; j++) {
+      //gang SIM->RECO cells to get final layer assignment
+      HGCalDetId simId(theHGCHits[i][j].id());
+      int layer(simId.layer()),cell(simId.cell());
+      std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
+      cell  = recoLayerCell.first;
+      layer = recoLayerCell.second;
+      if(layer < 0) continue;
+      
+      uint32_t recoDetId = ( (i==0) ?
+			     (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) :
+			     (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell)
+			     );
+      //      std::cout << " SCZ GIGADEBUG insert recoDetId det simhit trackid " << recoDetId << " " << i << " " << j << " " << theHGCHits[i][j].geantTrackId() <<  std::endl;
+      //      if (theHGCHits[i][j].geantTrackId() < 1) std::cout << " SCZ MEGADEBUG THE ABOVE HAS trackid 0" << std::endl;
+      recoDetIdToSimHitIndex.insert(std::make_pair(recoDetId,std::make_pair(i,j)));
+
+
+    }
+  }
+
+
   //first loop: make clusters
   std::auto_ptr<reco::PFClusterCollection> clusters(new reco::PFClusterCollection);
   std::unordered_multimap<unsigned,unsigned> pfos_to_clusters; // since pfos can be many to one pfos
@@ -1501,6 +1762,12 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
     
     // keep tabs on if this PFO was EM or HAD
     const bool pfoIsEM = ( 22 == (*itPFO)->GetParticleId() || 11 == std::abs((*itPFO)->GetParticleId()) ) ;
+
+    std::cout << " SCZ MEGADEBUG PFO ID " << (*itPFO)->GetParticleId() << " " << " clusterList.size() " << clusterList.size()
+              << " (*itPFO)->GetTrackList().size() " << (*itPFO)->GetTrackList().size() << std::endl;
+
+    assert (clusterList.size()<=1); // SCZ
+    assert ((*itPFO)->GetTrackList().size()<=1); // SCZ
     
     for (auto clusterIter = clusterList.cbegin(); clusterIter != clusterList.cend(); ++clusterIter){
       // keep track of clusters used by the PFOs
@@ -1523,6 +1790,23 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
         temp.setEnergy(temp.hadEnergy());
       }
 
+      pfPdgId = (*itPFO)->GetParticleId(); // SCZ
+      energy = temp.energy(); // SCZ
+      trackSeeded = (int)pCluster->IsTrackSeeded(); // SCZ
+
+      const TrackList &trackList((*itPFO)->GetTrackList());
+      TrackVector trackVector(trackList.begin(), trackList.end());
+      assert(trackVector.size() <= 1);
+
+      trackP = -1.;
+      for (TrackVector::const_iterator trackIter = trackVector.begin(), trackIterEnd = trackVector.end(); trackIter != trackIterEnd; ++trackIter) {
+        const pandora::Track *pPandoraTrack = (*trackIter);
+        // Extract pandora track states
+	const TrackState &trackState(pPandoraTrack->GetTrackStateAtStart());
+        const CartesianVector &momentum(trackState.GetMomentum());
+        trackP = momentum.GetMagnitude(); // SCZ
+      }
+
       // set cluster axis and position information
       const auto& pandoraAxis = pCluster->GetInitialDirection();
       math::XYZVector axis(pandoraAxis.GetX(),pandoraAxis.GetY(),pandoraAxis.GetZ());
@@ -1538,6 +1822,9 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
         temp.setPosition(pos);
       }
 
+      eta = temp.eta(); // SCZ
+      phi = temp.phi(); // SCZ
+
       if( pCluster->IsTrackSeeded() ) {
         const auto* pandoraTrack = pCluster->GetTrackSeed();
         auto iter = recTrackMap.find(pandoraTrack->GetParentTrackAddress());
@@ -1550,6 +1837,12 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
         }
       }
       
+      ngp = 0;
+      sumEneRecHit = 0.;
+      sumEneGp = 0.;
+
+      std::map<int,float> geantTrackIdToSimHitEnergy;
+
       //loop over calo hits in cluster
       const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());      
       if( orderedCaloHitList.size() ) {
@@ -1558,25 +1851,147 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
         auto iter = recHitMap.find(firsthit->GetParentCaloHitAddress());
         if( iter != recHitMap.end() ) {
           temp.setLayer(pfrechits.at(iter->second).layer());
-        } else {
-          throw cms::Exception("TrackUsedButNotFound")
-            << "Hit used in PandoraPFA was not found in the original input hit list!";
-        }
+	}
+      } else {
+	throw cms::Exception("TrackUsedButNotFound")
+	  << "Hit used in PandoraPFA was not found in the original input hit list!";
       }
-      for (auto layerIter = orderedCaloHitList.begin(), layerIterEnd = orderedCaloHitList.end(); layerIter != layerIterEnd; ++layerIter) {    
+
+      for (auto layerIter = orderedCaloHitList.begin(), layerIterEnd = orderedCaloHitList.end(); layerIter != layerIterEnd; ++layerIter) {
         const CaloHitList& hits_in_layer = *(layerIter->second);
         for( auto hitIter = hits_in_layer.cbegin(), hitIterEnd = hits_in_layer.cend(); hitIter != hitIterEnd; ++hitIter ) {
           auto hit_index = recHitMap.find((*hitIter)->GetParentCaloHitAddress());
           if( hit_index != recHitMap.end() ) {
-            reco::PFRecHitRef ref(rechith,hit_index->second);
+	    reco::PFRecHitRef ref(rechith,hit_index->second);
             temp.addRecHitFraction(reco::PFRecHitFraction(ref,(*hitIter)->GetWeight()));
-          } else {
-            throw cms::Exception("TrackUsedButNotFound")
-              << "Hit used in PandoraPFA was not found in the original input hit list!";
-          }
+	    auto currentRecoDetId = pfrechits.at(hit_index->second).detId();
+	    int layer = pfrechits.at(hit_index->second).layer();
+	    float currentRecoDetEnergy = pfrechits.at(hit_index->second).energy();
+	    const DetId& detid(currentRecoDetId);
+
+	    if (detid.subdetId() == 3) currentRecoDetEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
+	    if (detid.subdetId() == 4) currentRecoDetEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
+	    if (detid.subdetId() == 5) currentRecoDetEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());
+
+	    sumEneRecHit += currentRecoDetEnergy;
+
+	    //	    std::cout << " SCZ GIGADEBUG rechit layer " << layer << " x " << pfrechits.at(hit_index->second).position().x()
+	    //		      << " y " << pfrechits.at(hit_index->second).position().y()
+	    //		      << " z " << pfrechits.at(hit_index->second).position().z() << std::endl;
+
+
+	    //	    std::pair<unsigned,unsigned> simHitIndices = recoDetIdToSimHitIndex.
+	    //	      auto range = my_map.equal_range(reco det id);
+	    auto range = recoDetIdToSimHitIndex.equal_range(currentRecoDetId);
+	    //	    std::cout << "   SCZ GIGADEBUG just called equal_range on " << currentRecoDetId << std::endl;
+
+	    for (auto index_iter = range.first ; index_iter != range.second ; index_iter++) {
+	      //	      std::cout << " SCZ GIGADEBUG " << (index_iter->first) << " " << (index_iter->second.first) << " " << (index_iter->second.first) << std::endl;
+	      auto my_hit = theHGCHits[index_iter->second.first][index_iter->second.second];
+	      float currentSimHitEnergy = my_hit.energy();                                                                                                                    
+	      
+
+	      if (index_iter->second.first == 0) currentSimHitEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
+	      if (index_iter->second.first == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
+	      if (index_iter->second.first == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());                                                                 
+	      sumEneRecHit += currentRecoDetEnergy;                                                                                                                            
+	      
+	      int gid = my_hit.geantTrackId();                                                                                                                                
+	      sumEneGp += currentSimHitEnergy;                                                                                                                                 
+	      if (geantTrackIdToSimHitEnergy.count(gid)) {                                                                                                                     
+		geantTrackIdToSimHitEnergy[gid] += currentSimHitEnergy;                                                                                                        
+	      } else {                                                                                                                                                         
+		ngp++;
+		geantTrackIdToSimHitEnergy[gid] = currentSimHitEnergy;                                                                                                         
+	      }
+	    }
+
+	    // SCZ big loop
+	    /*
+	    for (unsigned int i = 0 ; i < theHGCHits.size() ; i++) {
+	      uint32_t mySubDet(ForwardSubdetector::HGCEE);
+	      if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
+	      else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
+	      
+	      const HGCalTopology &topo=geom[i]->topology();
+	      const HGCalDDDConstants &dddConst=topo.dddConstants();
+	      
+	      for(std::vector<PCaloHit>::iterator hit_it = theHGCHits[i].begin(); hit_it != theHGCHits[i].end(); ++hit_it)
+		{
+		  //gang SIM->RECO cells to get final layer assignment                                                                                                                         
+		  HGCalDetId simId(hit_it->id());
+		  int layer(simId.layer()),cell(simId.cell());
+		  std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
+		  cell  = recoLayerCell.first;
+		  layer = recoLayerCell.second;
+		  if(layer < 0) continue;
+		  
+
+		  uint32_t recoDetId = ( (i==0) ?
+					 (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) :
+					 (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell)
+					 );
+		  //		std::cout << "   SCZ GIGADEBUG has recoDetId " << recoDetId << " and energy " << hit_it->energy() << std::endl;
+		  if (recoDetId == currentRecoDetId) {
+		    float currentSimHitEnergy = hit_it->energy();
+
+		    if (i == 0) currentSimHitEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
+                    if (i == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
+                    if (i == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());
+		    sumEneRecHit += currentRecoDetEnergy;
+
+		    int gid = hit_it->geantTrackId();
+		    sumEneGp += currentSimHitEnergy;
+		    if (geantTrackIdToSimHitEnergy.count(gid)) {
+		      geantTrackIdToSimHitEnergy[gid] += currentSimHitEnergy;
+		    } else {
+		      ngp++;
+		      geantTrackIdToSimHitEnergy[gid] = currentSimHitEnergy;
+		      geantTrackIdToSimTrackEnergy[gid] = -1.;
+		      geantTrackIdToPdgId[gid] = 0;
+		      for (unsigned int isimtk = 0; isimtk < theSimTracks.size(); isimtk++){
+			if ((int)theSimTracks[isimtk].trackId() == gid) {
+			  geantTrackIdToSimTrackEnergy[gid] = theSimTracks[isimtk].trackerSurfaceMomentum().E();
+			  geantTrackIdToPdgId[gid] = theSimTracks[isimtk].type();
+			}
+		      }
+		    }
+		  } 
+		} // loop over sim hits
+	    } // loop over HGC detectors
+	    */
+
+	  } else {
+	    throw cms::Exception("TrackUsedButNotFound")
+	      << "Hit used in PandoraPFA was not found in the original input hit list!";
+	  }
         } // loop over hits in layer
       } // loop over layers
       clusters->push_back(temp);
+
+      // SCZ: we have these now                                                                                                                                                
+      //    map<int,int> geantTrackIdToPdgId;                                                                                                                                  
+      //    map<int,float> geantTrackIdToSimHitEnergy;                                                                                                                         
+      //    map<int,float> geantTrackIdToSimTrackEnergy;                                                                                                                       
+
+      std::multimap<float, int> simHitEnergyToGeantTrackEnergy  = flip_map(geantTrackIdToSimHitEnergy);
+
+      std::cout << " SCZ MEGADEBUG ngp=" << ngp << " energy=" << energy << " sumEneGp=" << sumEneGp << " sumEneRecHit=" << sumEneRecHit << std::endl;
+      int counter = 0;
+
+      for(std::multimap<float, int>::reverse_iterator pos = simHitEnergyToGeantTrackEnergy.rbegin(); pos != simHitEnergyToGeantTrackEnergy.rend(); ++pos) {
+	gpEneFrac[counter] = pos->first / sumEneGp; // SCZ changed here denominator from energy
+	gpEneTotal[counter] = geantTrackIdToSimTrackEnergy[pos->second];
+	gpPdgId[counter] = geantTrackIdToPdgId[pos->second];
+	gpStartRadius[counter] = geantTrackIdToStartingRadius[pos->second];
+	std::cout << "     SCZ GIGADEBUG " << counter++ << " " << pos->first << " " << pos->second << " " << geantTrackIdToSimHitEnergy[pos->second]
+		  << " " << geantTrackIdToSimTrackEnergy[pos->second] << " " << geantTrackIdToPdgId[pos->second] << std::endl;
+      }
+      
+      std::cout << " SCZ MEGADEBUG Fill clusterTree" << std::endl;
+      if (debugHisto) clusterTree->Fill();
+      std::cout << " SCZ MEGADEBUG Filled clusterTree" << std::endl;
+
     }//end clusters
     // tail catcher for the tracks on the pfo
     for( const auto* pandoraTrack : (*itPFO)->GetTrackList() ) {
@@ -1715,6 +2130,7 @@ void PandoraCMSPFCandProducer::beginJob()
     const bool oldAddDir = TH1::AddDirectoryStatus(); 
     TH1::AddDirectory(true); 
     
+    /*
     h_sumCaloE = new TH1F("sumCaloE","sum hit E in Calos",1000,0,400);
     h_sumCaloEM = new TH1F("sumCaloEM","sum hit E in Calos",1000,0,400);
     h_sumCaloHad = new TH1F("sumCaloHad","sum hit E in Calos",1000,0,400);
@@ -1780,15 +2196,101 @@ void PandoraCMSPFCandProducer::beginJob()
     mytree->Branch("eventno",&eventno);
     mytree->Branch("lumi",&lumi);
     mytree->Branch("nbPFOs",&nbPFOs);
+    */
+
+    /*
+  # define CLMAX 100
+  TTree *gpTree;
+  float gpTree_energy, gpTree_eta, gpTree_phi, gpTree_startRadius;
+  int gpTree_pdgId;
+  int gpTree_ncl;
+  int gpTree_clTrackSeeded[CLMAX];
+  float gpTree_clTotalEnergy[CLMAX];
+  float gpTree_clDeposit[CLMAX];
+  float gpTree_mipFraction[CLMAX];
+  float gpTree_dCosR[CLMAX];
+  float gpTree_clusterRms[CLMAX];
+  float gpTree_innerLayerRadLengths[CLMAX];
+  float gpTree_nRadiationLengths90[CLMAX];
+  float gpTree_showerMaxRadLengths[CLMAX];
+  float gpTree_energyAboveHighRadLengths[CLMAX];
+  float gpTree_energyAboveHighRadLengthsFrac[CLMAX];
+  float gpTree_radial90[CLMAX];
+  float gpTree_showerProfileStart[CLMAX];
+  float gpTree_showerProfileChi2[CLMAX];
+    */
+
+
+    gpTree = new TTree("gpTree","gpTree");
+    gpTree->Branch("energy",&gpTree_energy);
+    gpTree->Branch("eta",&gpTree_eta);
+    gpTree->Branch("phi",&gpTree_phi);
+    gpTree->Branch("pdgId",&gpTree_pdgId);
+    gpTree->Branch("startRadius",&gpTree_startRadius);
+    gpTree->Branch("ncl",&gpTree_ncl);
+    gpTree->Branch("clTrackSeeded",gpTree_clTrackSeeded,"clTrackSeeded[ncl]/I");
+    gpTree->Branch("clDeposit",gpTree_clDeposit,"clDeposit[ncl]/F");
+    gpTree->Branch("clTotalEnergy",gpTree_clTotalEnergy,"clTotalEnergy[ncl]/F");
+    gpTree->Branch("mipFraction",gpTree_mipFraction,"mipFraction[ncl]/F");
+    gpTree->Branch("dCosR",gpTree_dCosR,"dCosR[ncl]/F");
+    gpTree->Branch("clusterRms",gpTree_clusterRms,"clusterRms[ncl]/F");
+    gpTree->Branch("innerLayerRadLengths",gpTree_innerLayerRadLengths,"innerLayerRadLengths[ncl]/F");
+    gpTree->Branch("showerMaxRadLengths",gpTree_showerMaxRadLengths,"showerMaxRadLengths[ncl]/F");
+    gpTree->Branch("energyAboveHighRadLengths",gpTree_energyAboveHighRadLengths,"energyAboveHighRadLengths[ncl]/F");
+    gpTree->Branch("energyAboveHighRadLengthsFrac",gpTree_energyAboveHighRadLengthsFrac,"energyAboveHighRadLengthsFrac[ncl]/F");
+    gpTree->Branch("radial90",gpTree_radial90,"radial90[ncl]/F");
+    gpTree->Branch("showerProfileStart",gpTree_showerProfileStart,"showerProfileStart[ncl]/F");
+    gpTree->Branch("showerProfileChi2",gpTree_showerProfileChi2,"showerProfileChi2[ncl]/F");
+
+
+    /*
+    TTree *clusterTree;
+    float energy, trackP, eta, phi;
+    int pfPdgId, trackSeeded;
+    int ngp;
+    floatgpEneFrac[GPMAX];
+    floatgpPdgId[GPMAX];
+    */
+
+    std::cout << " SCZ MEGADEBUG new clusterTree" << std::endl;
+    clusterTree = new TTree("clusterTree","clusterTree");
+    clusterTree->Branch("energy",&energy);
+    clusterTree->Branch("sumEneGp",&sumEneGp);
+    clusterTree->Branch("sumEneRecHit",&sumEneRecHit);
+    clusterTree->Branch("trackP",&trackP);
+    clusterTree->Branch("eta",&eta);
+    clusterTree->Branch("phi",&phi);
+    clusterTree->Branch("pfPdgId",&pfPdgId);
+    clusterTree->Branch("trackSeeded",&trackSeeded);
+    clusterTree->Branch("ngp",&ngp);
+    clusterTree->Branch("gpEneFrac",gpEneFrac,"gpEneFrac[ngp]/F");
+    clusterTree->Branch("gpEneTotal",gpEneTotal,"gpEneTotal[ngp]/F");
+    clusterTree->Branch("gpPdgId",gpPdgId,"gpPdgId[ngp]/F");
+    clusterTree->Branch("gpStartRadius",gpStartRadius,"gpStartRadius[ngp]/F");
+    clusterTree->Branch("mipFraction",&mipFraction);
+    clusterTree->Branch("dCosR",&dCosR);
+    clusterTree->Branch("clusterRms",&clusterRms);
+    clusterTree->Branch("innerLayerRadLengths",&innerLayerRadLengths);
+    clusterTree->Branch("showerMaxRadLengths",&showerMaxRadLengths);
+    clusterTree->Branch("energyAboveHighRadLengths",&energyAboveHighRadLengths);
+    clusterTree->Branch("energyAboveHighRadLengthsFrac",&energyAboveHighRadLengthsFrac);
+    clusterTree->Branch("radial90",&radial90);
+    clusterTree->Branch("showerProfileStart",&showerProfileStart);
+    clusterTree->Branch("showerProfileChi2",&showerProfileChi2);
+
     
     TH1::AddDirectory(oldAddDir); 
     
+
+    // SCZ NEIN
+    /*
     m_hitEperLayer_EM[ForwardSubdetector::HGCEE]  = new double[100];
     m_hitEperLayer_EM[ForwardSubdetector::HGCHEF] = new double[100];
     m_hitEperLayer_EM[ForwardSubdetector::HGCHEB] = new double[100];
     m_hitEperLayer_HAD[ForwardSubdetector::HGCEE]  = new double[100];
     m_hitEperLayer_HAD[ForwardSubdetector::HGCHEF] = new double[100];
     m_hitEperLayer_HAD[ForwardSubdetector::HGCHEB] = new double[100];
+    */
   }
   
   // read in calibration parameters
