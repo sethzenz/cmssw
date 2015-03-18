@@ -22,14 +22,14 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(5)
+    input = cms.untracked.int32(1000)
 )
 
 # Input source
 process.source = cms.Source("PoolSource",
     secondaryFileNames = cms.untracked.vstring(),
     fileNames = cms.untracked.vstring(#'file:/afs/cern.ch/work/s/sethzenz/public/customizer_test/step2.root'#
-        '/store/relval/CMSSW_6_2_0_SLHC23/RelValQCD_Pt_80_120_14TeV/GEN-SIM-DIGI-RAW/PU_PH2_1K_FB_V6_HGCalV5PU140-v1/00000/02A9D980-189C-E411-B8A0-0025905964A2.root')
+        '/store/relval/CMSSW_6_2_0_SLHC23/RelValQCD_Pt_80_120_14TeV/GEN-SIM-DIGI-RAW/PH2_1K_FB_V6_UPGHGCalV5-v1/00000/3C5A4DCF-3D9C-E411-8AAD-00261894397F.root')
 )
 
 process.options = cms.untracked.PSet(
@@ -50,7 +50,7 @@ process.RECOSIMoutput = cms.OutputModule("PoolOutputModule",
     eventAutoFlushCompressedSize = cms.untracked.int32(5242880),
     outputCommands = process.RECOSIMEventContent.outputCommands,
 #    fileName = cms.untracked.string('file:/afs/cern.ch/work/s/sethzenz/public/customizer_test/step3.root'),
-    fileName = cms.untracked.string('file:/afs/cern.ch/work/s/sethzenz/public/customizer_test/step3_RelValQCD_140PU_5evts.root')                                     ,
+    fileName = cms.untracked.string('file:/tmp/lgray/blah.root')                                     ,
     dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
         dataTier = cms.untracked.string('GEN-SIM-RECO')
@@ -74,8 +74,10 @@ process.RECOSIMoutput_step = cms.EndPath(process.RECOSIMoutput)
 process.schedule = cms.Schedule(process.raw2digi_step,process.L1Reco_step,process.reconstruction_step,process.endjob_step,process.RECOSIMoutput_step)
 
 # customisation of the process.
-from HGCal.PandoraTranslator.customizeHGCalPandora_cff import cust_2023HGCalPandora_common
+from RecoParticleFlow.PandoraTranslator.customizeHGCalPandora_cff import cust_2023HGCalPandora_common
 process = cust_2023HGCalPandora_common(process)
+
+process.pandorapfanew.inputconfigfile = cms.FileInPath('RecoParticleFlow/PandoraTranslator/data/PandoraSettingsCheatedNeutrals_cms.xml')
 
 # Automatic addition of the customisation function from SLHCUpgradeSimulations.Configuration.combinedCustoms
 #from SLHCUpgradeSimulations.Configuration.combinedCustoms import cust_2023HGCalMuon 
