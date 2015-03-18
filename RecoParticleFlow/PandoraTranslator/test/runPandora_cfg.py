@@ -36,7 +36,7 @@ process.TrackAssociatorRecord = cms.ESSource("EmptyESSource",
 )
 process.load('SimTracker.TrackAssociation.quickTrackAssociatorByHits_cfi')
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(10) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100) )
 
 # this is for the event display 
 #process.EveService = cms.Service("EveService")

@@ -32,6 +32,7 @@
 // Addition for HGC geometry
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/CaloGeometry/interface/FlatTrd.h"
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "DataFormats/ForwardDetId/interface/HGCEEDetId.h"
 #include "DataFormats/ForwardDetId/interface/HGCHEDetId.h"
 #include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
@@ -78,6 +79,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <unordered_set>
+#include <numeric>
 
 using namespace edm;
 using namespace reco;
@@ -126,6 +128,9 @@ PandoraCMSPFCandProducer::PandoraCMSPFCandProducer(const edm::ParameterSet& iCon
   inputTagGeneralTracks_ = iConfig.getParameter<InputTag>("generaltracks");
   inputTagtPRecoTrackAsssociation_ = iConfig.getParameter<InputTag>("tPRecoTrackAsssociation");
   inputTagGenParticles_ = iConfig.getParameter<InputTag>("genParticles");
+  inputTagSimTracks_ = iConfig.getParameter<InputTag>("simTracks");
+  inputTagSimVertices_ = iConfig.getParameter<InputTag>("simVertices");
+  inputSimHits_ = iConfig.getParameter<std::vector<InputTag> >("HGCSimHits");
   m_pandoraSettingsXmlFile = iConfig.getParameter<edm::FileInPath>("inputconfigfile");
 
   m_calibrationParameterFile = iConfig.getParameter<edm::FileInPath>("calibrParFile");
@@ -172,10 +177,16 @@ void PandoraCMSPFCandProducer::produce(edm::Event& iEvent, const edm::EventSetup
   if(debugPrint) std::cout << "Analyzing events" << std::endl ; 
 
   // std::cout << "Analyzing events 1 " << std::endl ;
+  
+  prepareMCParticleAssociations(iEvent);
 
   prepareTrack(iEvent);
-  preparemcParticle(iEvent); //put before prepareHits() to have mc info, for mip calib check
+  
   prepareHits(iEvent);
+
+  //preparePandoraMCParticles(iEvent); // this should happen after pandora is loaded with the various reconstructed things in the event
+
+
   PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=,PandoraApi::ProcessEvent(*m_pPandora));
   if(debugPrint || debugHisto) preparePFO(iEvent); //not necessary for production
   
@@ -190,8 +201,21 @@ void PandoraCMSPFCandProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
    PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=,PandoraApi::Reset(*m_pPandora));
 
-   recHitMap.clear();
-   recTrackMap.clear();
+   std::unordered_map<const void*,unsigned int>().swap(recHitMap);
+   std::unordered_map<const void*,unsigned int>().swap(recTrackMap);
+
+   // clear out the MC particle maps
+   RecoDetIdToSimHitsMap().swap( m_recoDetIdToSimHit );
+   SimHitsToSimTrackMap().swap( m_simHitsToSimTracks );
+   SimTrackToVertexMap().swap( m_simTrackToStartSimVertex );
+   SimTrackToVertexMap().swap( m_simTrackToStartSimVertexEnd );
+   SimVertexToTracksMap().swap( m_simVertexToSimTracks );
+   SimVertexToTracksMap().swap( m_simTrackToSimVertex );
+   SimVertexToTracksMap().swap( m_simVertexToSimTrackParent );
+   BarCodeMap().swap(m_barCodesToSimTrack);
+   BarCodeMap().swap(m_barCodesToSimVertices);
+   BarCodeMap().swap(m_barCodesToSimHits);
+   BarCodeMap().swap(m_barCodesToGenParticle);
 }
 
 void PandoraCMSPFCandProducer::initPandoraCalibrParameters()
@@ -863,18 +887,30 @@ void PandoraCMSPFCandProducer::prepareHits( edm::Event& iEvent)
   edm::Handle<reco::VertexCollection> pvHandle;
   iEvent.getByLabel("offlinePrimaryVertices", pvHandle);
   reco::Vertex pv = pvHandle->at(0) ; 
-  
+
   // get the HGC PFRecHit collection
   edm::Handle<reco::PFRecHitCollection> HGCRecHitHandle;
-
+  
   bool found = iEvent.getByLabel(inputTagHGCrechit_, HGCRecHitHandle);
-
+  
   if(!found ) {
     std::ostringstream err;
     err<<"cannot find rechits: "<< inputTagHGCrechit_;
     LogError("PandoraCMSPFCandProducer")<<err.str()<<std::endl;
     throw cms::Exception( "MissingProduct", err.str());
   }
+
+  // get the sim hits (make sure they are same order in the python!
+  std::vector<edm::Handle<std::vector<PCaloHit> > > simHits;  
+  for( const auto& tag : inputSimHits_ ) {
+    simHits.emplace_back( edm::Handle<std::vector<PCaloHit> >() );
+    iEvent.getByLabel(tag,simHits.back());
+  }
+
+  // get sim tracks to associate to
+  edm::Handle<std::vector<SimTrack> > simTracks;
+  iEvent.getByLabel(inputTagSimTracks_,simTracks);
+  
 
   PandoraApi::RectangularCaloHitParameters caloHitParameters;
 
@@ -907,9 +943,9 @@ void PandoraCMSPFCandProducer::prepareHits( edm::Event& iEvent)
   for(unsigned i=0; i<HGCRecHitHandle->size(); i++) {
     const reco::PFRecHit* rh = &(*HGCRecHitHandle)[i];
     const DetId detid(rh->detId());
-    if (detid.subdetId() == 3) ProcessRecHits(rh, i, HGCEEGeometry, m_calibEE, nCaloHitsEE, nNotFoundEE, pv, pandora::ECAL, pandora::ENDCAP, caloHitParameters);
-    else if (detid.subdetId() == 4) ProcessRecHits(rh, i, HGCHEFGeometry, m_calibHEF, nCaloHitsHEF, nNotFoundHEF, pv, pandora::HCAL, pandora::ENDCAP, caloHitParameters);
-    else if (detid.subdetId() == 5) ProcessRecHits(rh, i, HGCHEBGeometry, m_calibHEB, nCaloHitsHEB, nNotFoundHEB, pv, pandora::HCAL, pandora::ENDCAP, caloHitParameters);
+    if (detid.subdetId() == 3) ProcessRecHits(simTracks,simHits,rh, i, HGCEEGeometry, m_calibEE, nCaloHitsEE, nNotFoundEE, pv, pandora::ECAL, pandora::ENDCAP, caloHitParameters);
+    else if (detid.subdetId() == 4) ProcessRecHits(simTracks,simHits,rh, i, HGCHEFGeometry, m_calibHEF, nCaloHitsHEF, nNotFoundHEF, pv, pandora::HCAL, pandora::ENDCAP, caloHitParameters);
+    else if (detid.subdetId() == 5) ProcessRecHits(simTracks,simHits,rh, i, HGCHEBGeometry, m_calibHEB, nCaloHitsHEB, nNotFoundHEB, pv, pandora::HCAL, pandora::ENDCAP, caloHitParameters);
     else continue;
   }
 
@@ -957,7 +993,9 @@ void PandoraCMSPFCandProducer::prepareHits( edm::Event& iEvent)
   }
 }
 
-void PandoraCMSPFCandProducer::ProcessRecHits(const reco::PFRecHit* rh, unsigned int index, const HGCalGeometry* geom, CalibHGC& calib, int& nCaloHits, int& nNotFound, reco::Vertex& pv,
+void PandoraCMSPFCandProducer::ProcessRecHits(const edm::Handle<std::vector<SimTrack> >& simTracks,
+                                              const std::vector<edm::Handle<std::vector<PCaloHit> > >& simHits,
+                                              const reco::PFRecHit* rh, unsigned int index, const HGCalGeometry* geom, CalibHGC& calib, int& nCaloHits, int& nNotFound, reco::Vertex& pv,
                  const pandora::HitType hitType, const pandora::HitRegion hitRegion, PandoraApi::RectangularCaloHitParameters& caloHitParameters)
 {
     const DetId detid(rh->detId());
@@ -1095,98 +1133,32 @@ void PandoraCMSPFCandProducer::ProcessRecHits(const reco::PFRecHit* rh, unsigned
     recHitMap.emplace((void*)rh,index); //associate parent address with collection index
     
     PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::CaloHit::Create(*m_pPandora, caloHitParameters));
+    // also make the association to the paren sim particle
+    unsigned detId = rh->detId();
+    auto shrange = m_recoDetIdToSimHit.equal_range(detId);
+    for( auto iter = shrange.first; iter != shrange.second; ++iter ) {
+      const unsigned det = std::get<0>(iter->second);
+      const unsigned hit_idx = std::get<1>(iter->second);
+      const float fraction = std::get<2>(iter->second);
+      const PCaloHit& simhit = simHits[det]->at(hit_idx);
+      int tkid = simhit.geantTrackId();
+      if( tkid > 0 ) { // <= 0 is a NULL track ID, i.e. no parent for the hit
+        auto i_tk = m_barCodesToSimTrack.find(tkid);
+        if( i_tk == m_barCodesToSimTrack.end() ) {
+          throw cms::Exception("BadPCaloHitToTrackAssc")
+            << "Track (" << tkid << ") associated to PCaloHit not found in list of barcodes!";
+        }      
+        const SimTrack& simtrack = simTracks->at(i_tk->second);
+        PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetCaloHitToMCParticleRelationship(*m_pPandora, (const void *)rh,(const void*)&simtrack,fraction));
+      }
+    }
     
     nCaloHits++;
 }
 
 
-void PandoraCMSPFCandProducer::preparemcParticle(edm::Event& iEvent){ // function to setup a mcParticle for pandora
-  // PandoraPFANew/v00-09/include/Api/PandoraApi.h
-  //class MCParticleParameters
-  //{
-  //public:
-  //    pandora::InputFloat             m_energy;                   ///< The energy of the MC particle, units GeV
-  //    pandora::InputCartesianVector   m_momentum;                 ///< The momentum of the MC particle, units GeV
-  //    pandora::InputCartesianVector   m_vertex;                   ///< The production vertex of the MC particle, units mm
-  //    pandora::InputCartesianVector   m_endpoint;                 ///< The endpoint of the MC particle, units mm
-  //    pandora::InputInt               m_particleId;               ///< The MC particle's ID (PDG code)
-  //    pandora::InputAddress           m_pParentAddress;           ///< Address of the parent MC particle in the user framework
-  //};
-  // for(std::vector<reco::GenParticle>::const_iterator cP = genpart->begin();  cP != genpart->end(); cP++ ) {
-
-  edm::Handle<std::vector<reco::GenParticle> > genpart;
-  iEvent.getByLabel(inputTagGenParticles_,genpart);
+void PandoraCMSPFCandProducer::preparePandoraMCParticles(edm::Event& iEvent){ // function to setup a mcParticle for pandora
   
-   const GenParticle * firstMCp = &(*genpart)[0];
-   if (firstMCp) {
-      m_firstMCpartEta = firstMCp->eta();
-      m_firstMCpartPhi = firstMCp->phi();
-   }
-   if (genpart->size()>=2) {
-      const GenParticle * secondMCp = &(*genpart)[1];
-      if (secondMCp) {
-         m_secondMCpartEta = secondMCp->eta();
-         m_secondMCpartPhi = secondMCp->phi();
-      }
-   }      
-  
-  RminVtxDaughter[0] = 999999.; //initialise for each event
-  RminVtxDaughter[1] = 999999.; //initialise for each event
-                                //FIXME Attention will crash for one particle sample
-  ZminVtxDaughter[0] = 999999.; //initialise for each event
-  ZminVtxDaughter[1] = 999999.; //initialise for each event
-                                //FIXME Attention will crash for one particle sample  
-     
-  isDecayedBeforeCalo[0] = 0;
-  isDecayedBeforeCalo[1] = 0;
-
-  for(size_t i = 0; i < genpart->size(); ++ i) {
-    const GenParticle * pa = &(*genpart)[i];
-    PandoraApi::MCParticle::Parameters parameters;
-    parameters.m_energy = pa->energy(); 
-    parameters.m_momentum = pandora::CartesianVector(pa->px() , pa->py(),  pa->pz() );
-    parameters.m_vertex = pandora::CartesianVector(pa->vx() * 10. , pa->vy() * 10., pa->vz() * 10. ); //in mm       
-        
-    // parameters.m_endpoint = pandora::CartesianVector(position.x(), position.y(), position.z());
-    // Definition of the enpoint depends on the application that created the particle, e.g. the start point of the shower in a calorimeter.
-    // If the particle was not created as a result of a continuous process where the parent particle continues, i.e.
-    // hard ionization, Bremsstrahlung, elastic interactions, etc. then the vertex of the daughter particle is the endpoint.
-    parameters.m_endpoint = pandora::CartesianVector(pa->vx() * 10. , pa->vy() * 10., pa->vz() * 10. ); //IS THIS CORRECT?! //NO, should be where it starts to decay
-    parameters.m_particleId = pa->pdgId();
-    parameters.m_mcParticleType = pandora::MCParticleType::MC_3D;
-    parameters.m_pParentAddress = (void*) pa;
-    if(i==0 && debugPrint) std::cout << "The mc particle pdg id " << pa->pdgId() << " with energy " << pa->energy() << std::endl;
-    PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::MCParticle::Create(*m_pPandora, parameters));  
-        
-    // Create parent-daughter relationships
-    // HepMC::GenParticle * theParticle = new HepMC::GenParticle(HepMC::FourVector(0.,0.,0.,0.),12,1);
-     size_t n = pa->numberOfDaughters();
-    //std::cout << "The mc particle pdg id " << pa->pdgId() << " with energy " << pa->energy() << " and " << n << " daughters " <<  std::endl;
-        
-    for(size_t j = 0; j < n; ++ j) {
-      const Candidate * d = pa->daughter( j );
-      //if we want to keep it also in GenParticle uncomment here
-      const GenParticle * da = NULL;
-      //We need to check if this daughter has an integer charge
-      bool integercharge = ( ( (int) d->charge() ) - (d->charge()) ) == 0 ? true : false;
-      da = new GenParticle( d->charge(), d->p4() , d->vertex() , d->pdgId() , d->status() , integercharge);    
-
-      double RaVeDa = 10 * std::sqrt(da->vx()*da->vx()+da->vy()*da->vy()+da->vz()*da->vz());
-         
-      if (i<2) {
-         if (RminVtxDaughter[i]>RaVeDa)
-            RminVtxDaughter[i] = RaVeDa;
-         if (ZminVtxDaughter[i]>da->vz())
-            ZminVtxDaughter[i] = da->vz();
-      }
-  
-      PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetMCParentDaughterRelationship(*m_pPandora, pa , da));  
-    }
-  }
-    
-  if (ZminVtxDaughter[0] < 3170) isDecayedBeforeCalo[0] = 1;
-  if (ZminVtxDaughter[1] < 3170) isDecayedBeforeCalo[1] = 1;
-    
 }
 
 void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
@@ -1894,6 +1866,234 @@ PandoraCMSPFCandProducer::endLuminosityBlock(edm::LuminosityBlock const&, edm::E
 {
 }
 */
+
+void 
+PandoraCMSPFCandProducer::prepareMCParticleAssociations(edm::Event& iEvent) {
+  // ensure we are in a good starting state
+  m_recoDetIdToSimHit.clear();
+  m_simHitsToSimTracks.clear();
+  m_simTrackToStartSimVertex.clear();
+  m_simTrackToStartSimVertexEnd.clear();
+  m_simTrackToSimVertex.clear();
+  m_simVertexToSimTracks.clear();
+  m_barCodesToSimTrack.clear();
+  m_barCodesToSimVertices.clear();
+  m_barCodesToSimHits.clear();
+  m_barCodesToGenParticle.clear();
+  m_simVertexToSimTrackParent.clear();
+
+  // get all the necessary bits from the event
+  edm::Handle<reco::GenParticleCollection> genParticles;
+  edm::Handle<std::vector<int> > genBarcodes;
+  
+  edm::Handle<std::vector<SimTrack> > simTracks;
+  edm::Handle<std::vector<SimVertex> > simVertices;
+  std::vector<edm::Handle<std::vector<PCaloHit> > > simHits;
+
+  iEvent.getByLabel(inputTagGenParticles_,genParticles);
+  iEvent.getByLabel(inputTagGenParticles_,genBarcodes);  
+  iEvent.getByLabel(inputTagSimTracks_,simTracks);
+  iEvent.getByLabel(inputTagSimVertices_,simVertices);
+  for( const auto& tag : inputSimHits_ ) {
+    simHits.emplace_back( edm::Handle<std::vector<PCaloHit> >() );
+    iEvent.getByLabel(tag,simHits.back());
+  }
+
+  // setup the reco det id to sim-hit match
+  std::unordered_set<unsigned> reco_detIds;
+  for( unsigned i = 0; i < simHits.size(); ++i ) {
+    const auto& hits = *(simHits[i]);
+    for( unsigned j = 0; j < hits.size(); ++j ) {
+      // get topo
+      HGCalDetId simId(hits[j].id());
+      ForwardSubdetector mysubdet = (ForwardSubdetector)(i+3);
+      const HGCalGeometry* geom = nullptr;
+      switch(mysubdet) {
+      case HGCEE:
+        geom = hgceeGeoHandle.product();
+        break;
+      case HGCHEF:
+        geom = hgchefGeoHandle.product();
+        break;
+      case HGCHEB:
+        geom = hgchebGeoHandle.product();
+        break;
+      default:
+        throw cms::Exception("InvalidDetector")
+          << "Got invalid HGC subdet: " << mysubdet;
+      }
+      const HGCalTopology& topo = geom->topology();
+      const HGCalDDDConstants& dddConst = topo.dddConstants();
+      
+      int layer(simId.layer()), cell(simId.cell());
+      std::pair<int,int> recoLayerCell = dddConst.simToReco(cell,layer,topo.detectorType());
+      cell  = recoLayerCell.first;
+      layer = recoLayerCell.second;
+      if(layer < 0) continue;
+      
+      uint32_t recoDetId = ( ( geom == hgceeGeoHandle.product() ) ?
+			     (uint32_t)HGCEEDetId(ForwardSubdetector(mysubdet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) :
+			     (uint32_t)HGCHEDetId(ForwardSubdetector(mysubdet),simId.zside(),layer,simId.sector(),simId.subsector(),cell)
+			     );
+      reco_detIds.insert(recoDetId);
+      m_recoDetIdToSimHit.emplace(recoDetId,std::make_tuple(i,j,0.0f));
+    }
+  }
+  
+  // calculate and store the weights for particles associated to 
+  // pcalohits
+  for( const unsigned detid : reco_detIds ) {
+    auto range = m_recoDetIdToSimHit.equal_range(detid);
+    double e_tot = 0.0;
+    for( auto iter = range.first; iter != range.second; ++iter ) {
+      const PCaloHit& hit = simHits[std::get<0>(iter->second)]->at(std::get<1>(iter->second));
+      if( hit.geantTrackId() > 0 ) e_tot += hit.energy();
+    }
+    for( auto iter = range.first; iter != range.second; ++iter ) {
+      const PCaloHit& hit = simHits[std::get<0>(iter->second)]->at(std::get<1>(iter->second));
+      if( hit.geantTrackId() > 0 ) {
+        float fraction = hit.energy()/e_tot;
+        std::make_tuple(std::get<0>(iter->second),std::get<1>(iter->second),fraction).swap(iter->second);
+      }
+    }
+  }
+
+  // stash barcodes for genparticles/simtracks/simvertices/simhits
+  // gen particles
+  const reco::GenParticleCollection& genParts = *genParticles;
+  const std::vector<int> genBCs = *genBarcodes;
+  for( unsigned i = 0; i < genParts.size(); ++i ) {
+    m_barCodesToGenParticle.emplace(genBCs[i], i);
+  }
+  // simtracks (indexed by sim vertex or by gen particle barcode)
+  const std::vector<SimTrack>& simTks = *simTracks;
+  for( unsigned i = 0; i < simTks.size(); ++i ) {
+    m_barCodesToSimTrack.emplace( simTks[i].trackId(), i );
+    if( !simTks[i].noVertex() ) 
+      m_simVertexToSimTracks.emplace( simTks[i].vertIndex(), i);
+    if( !simTks[i].noGenpart() ) 
+      m_barCodesToSimTrack.emplace( simTks[i].genpartIndex(), i);
+  }
+  // sim vertices (indexed by sim track indices) 
+  const std::vector<SimVertex>& simVtxs = *simVertices;
+  for( unsigned i = 0; i < simVtxs.size(); ++i ) {
+    m_barCodesToSimVertices.emplace( simVtxs[i].vertexId(), i);
+    if( !simVtxs[i].noParent() ) {
+      m_simTrackToSimVertex.emplace( simVtxs[i].parentIndex(), i );
+      m_simVertexToSimTrackParent.emplace( simVtxs[i].vertexId(), simVtxs[i].parentIndex() );
+    }
+  }
+  // now that we have these maps we can fill all the associations in the pandora event
+  // later when we fill tracks and hits we can make the final associations there
+  // first pass: import all status one gen particles
+  for( unsigned i = 0; i < genParts.size(); ++i ) {
+    const reco::GenParticle& genp = genParts[i];
+    if( genp.status() == 1 ) {
+      PandoraApi::MCParticle::Parameters parameters;
+      // basic info
+      parameters.m_energy = genp.energy(); 
+      parameters.m_momentum = pandora::CartesianVector(genp.px() , genp.py(),  genp.pz() );
+      // gen particles don't really have a concept of physical extent... these are here for bookkeeping
+      parameters.m_vertex = pandora::CartesianVector( genp.vx() * 10. , genp.vy() * 10., genp.vz() * 10. );
+      parameters.m_endpoint = pandora::CartesianVector( genp.vx() * 10. , genp.vy() * 10., genp.vz() * 10. );
+      parameters.m_particleId = genp.pdgId();
+      parameters.m_mcParticleType = pandora::MCParticleType::MC_3D;
+      parameters.m_pParentAddress = (void*)&genp;  
+      //std::cout << "Adding genparticle : " << i << ' ' << genp.pdgId() << " to pandora!" << std::endl;
+      PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::MCParticle::Create(*m_pPandora, parameters));  
+    }
+  }
+  // second pass: import all of the sim tracks
+  for( unsigned i = 0; i < simTks.size(); ++i ) {
+    // loop over the sim tracks adding each sim track as a MC particle in the event
+    const SimTrack& simtrack = simTks[i];
+    //std::cout << simtrack.noVertex() << ' ' << simtrack.noGenpart() << std::endl;
+    PandoraApi::MCParticle::Parameters parameters;
+    // first case,  this track comes from a gen particle
+    if( !simtrack.noVertex() && !simtrack.noGenpart() ) {
+      // get the parent gen particle of this  sim track
+      auto i_start = m_barCodesToGenParticle.find(simtrack.genpartIndex());
+      if( i_start != m_barCodesToGenParticle.end() ) {
+        const reco::GenParticle& start_vtx = genParts[i_start->second];
+        parameters.m_vertex = pandora::CartesianVector( start_vtx.vx() * 10. , start_vtx.vy() * 10., start_vtx.vz() * 10. );
+      } else {
+        throw cms::Exception("SimTrackHasNoGenParticle")
+          << "SimTrack: " << simtrack.trackId() << ' ' << simtrack.type() << " has no associated gen particle!";
+      }
+    }
+    // second case this track comes from a sim vertex
+    if( simtrack.noGenpart() ) {
+      // get the parent sim vertex of this sim track
+      auto i_start = m_simVertexToSimTracks.find(simtrack.vertIndex());
+      if( i_start != m_simVertexToSimTracks.end() ) {
+        const SimVertex& start_vtx = simVtxs[i_start->first];
+        const auto& pos = start_vtx.position();
+        parameters.m_vertex = pandora::CartesianVector( pos.x() * 10. , pos.y() * 10., pos.z() * 10. );
+      } else {
+        throw cms::Exception("SimTrackHasNoSimVertex")
+          << "SimTrack: " << simtrack.trackId() << ' ' << simtrack.type() << " has no associated sim vertex!";
+      }        
+    }      
+    
+    // find the vertex that has this track as a parent:
+    auto i_end = m_simTrackToSimVertex.find(simtrack.trackId());
+    if( i_end != m_simTrackToSimVertex.end() ) {
+      const SimVertex& end_vtx = simVtxs[i_end->second];
+      const auto& pos = end_vtx.position();
+      parameters.m_endpoint = pandora::CartesianVector( pos.x() * 10. , pos.y() * 10., pos.z() * 10. );
+    } else {
+      constexpr float floatmax = 9999.f;
+      parameters.m_endpoint = pandora::CartesianVector( floatmax, floatmax, floatmax );
+    }
+    // basic info
+    const auto& sim_p = simtrack.momentum();
+    parameters.m_energy = sim_p.T(); 
+    parameters.m_momentum = pandora::CartesianVector(sim_p.X() , sim_p.Y(),  sim_p.Z() );
+    parameters.m_particleId = simtrack.type();
+    parameters.m_mcParticleType = pandora::MCParticleType::MC_3D;
+    parameters.m_pParentAddress = (void*)&simtrack;
+    
+    PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::MCParticle::Create(*m_pPandora, parameters));  
+  }
+  // third pass: set gen particle -> sim track associations
+  for( unsigned i = 0; i < genParts.size(); ++i ) {
+    const reco::GenParticle& genp = genParts[i];
+    const void* gen_ptr = static_cast<const void*>(&genp);
+    if( genp.status() == 1 ) {
+      auto i_tk = m_barCodesToSimTrack.find(genBCs[i]);
+      if( i_tk != m_barCodesToSimTrack.end() ) {
+        const SimTrack& simtrack = simTks[i_tk->second];
+        const void* sim_ptr = static_cast<const void*>(&simtrack);
+        PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetMCParentDaughterRelationship(*m_pPandora,gen_ptr,sim_ptr));
+      }
+    }
+  }
+  // fourth pass: set sim track -> sim track associations (skipping the gen -> sim associations)
+  for( unsigned i = 0; i < simTks.size(); ++i ) {
+    // only find parents!
+    if( !simTks[i].noVertex() && !simTks[i].noGenpart() ) continue; // skip sim tracks whose parents are gen particles (we already covered those)
+    if( !simTks[i].noGenpart() ) {
+      const SimTrack& daughter = simTks[i];
+      const void* daughter_ptr = static_cast<const void*>(&daughter);    
+    // get the sim vertex that this daughter belongs to    
+      const void* parent_ptr = nullptr;
+      auto i_vtxparent = m_simVertexToSimTrackParent.find(daughter.vertIndex());
+      if( i_vtxparent != m_simVertexToSimTrackParent.end() ) {
+        auto i_parent = m_barCodesToSimTrack.find(i_vtxparent->second);
+        if( i_parent != m_barCodesToSimTrack.end() ) {
+          parent_ptr = &simTks[i_parent->second];
+        } else {
+          throw cms::Exception("SimTrackHasNoBarcode")
+            << "SimTrack Barcode: " << i_vtxparent->second << " has no associated sim track!";
+        }
+      } else {
+        throw cms::Exception("SimVertexHasNoParent")
+          << "SimTrack: " << i << " has no associated parent simtrack!";
+      } 
+      PANDORA_THROW_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::SetMCParentDaughterRelationship(*m_pPandora,parent_ptr,daughter_ptr));
+    }
+  }
+}
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
 void
