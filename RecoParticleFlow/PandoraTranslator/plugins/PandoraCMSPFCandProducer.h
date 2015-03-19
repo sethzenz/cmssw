@@ -304,7 +304,6 @@ private:
   //std::vector<std::string> mFileNames;
 
   // SCZ
-  edm::InputTag    inputTagSimTracks_;
   edm::InputTag inputTagSimHGCHitsEE_;
   edm::InputTag inputTagSimHGCHitsHEfront_;
   edm::InputTag inputTagSimHGCHitsHEback_;

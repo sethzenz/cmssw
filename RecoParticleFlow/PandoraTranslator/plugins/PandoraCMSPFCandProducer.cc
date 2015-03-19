@@ -156,7 +156,7 @@ PandoraCMSPFCandProducer::PandoraCMSPFCandProducer(const edm::ParameterSet& iCon
   //    produces<reco::PFCandidateElectronExtraCollection>(electronExtraOutputCol_);
   //    produces<reco::PFCandidatePhotonExtraCollection>(photonExtraOutputCol_);
   
-  inputTagSimTracks_ = iConfig.getUntrackedParameter<InputTag>("simTracks",InputTag("g4SimHits"));
+  //  inputTagSimTracks_ = iConfig.getUntrackedParameter<InputTag>("simTracks",InputTag("g4SimHits"));
   inputTagSimHGCHitsEE_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsEE",InputTag("g4SimHits:HGCHitsEE"));
   inputTagSimHGCHitsHEback_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsHEback",InputTag("g4SimHits:HGCHitsHEback"));
   inputTagSimHGCHitsHEfront_ = iConfig.getUntrackedParameter<InputTag>("SimHGCHitsHEfront",InputTag("g4SimHits:HGCHitsHEfront"));
