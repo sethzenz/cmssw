@@ -1247,7 +1247,8 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
     //   (*itPFO)->SetEnergy();
     //   (*itPFO)->SetMomentum();
     // }
-  
+
+  /*  
   const pandora::PfoList *pPfoList = NULL;
   // PANDORA_RETURN_RESULT_IF(pandora::STATUS_CODE_SUCCESS, !=, PandoraApi::GetCurrentPfoList(*m_pPandora, pPfoList));
 
@@ -1325,17 +1326,37 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
         //ene_had = pCluster->GetHadronicEnergy();
         // hits
 
+	std::cout << " We're gonna get the fit to hits result..." << std::endl;
+
+	const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
+
+	std::cout << " IS fit succesful?" << std::endl;
+	std::cout << clusterFitResult.IsFitSuccessful()  << std::endl;
+
+	std::cout << " SCZ MEGaDEBUG pCluster->GetMipFraction() " << pCluster->GetMipFraction() << std::endl;
+
 	const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
 	mipFraction = pCluster->GetMipFraction();
 	dCosR = 0.;
 	clusterRms = 0.;
+  */
+
+	/*
+	std::cout << " We're gonna get the fit to hits result..." << std::endl;
 
 	const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
+	
+	std::cout << " IS fit succesful?" << std::endl;
+	std::cout << clusterFitResult.IsFitSuccessful()  << std::endl;
+	*/
 
+  /*
 	if (clusterFitResult.IsFitSuccessful()) {
 	  dCosR = clusterFitResult.GetRadialDirectionCosine();
 	  clusterRms = clusterFitResult.GetRms();
 	}
+
+	std::cout << " SCZ MEGADEBUG cluster fit result done" << std::endl;
 
 	const CartesianVector &clusterDirection(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
 						pCluster->GetFitToAllHitsResult().GetDirection() : pCluster->GetInitialDirection());
@@ -1345,8 +1366,10 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 
 	// Calculate properties of longitudinal shower profile: layer90 and shower max layer                                                                                           
 	bool foundLayer90(false);
-	float layer90EnergySum(0.f), /*showerMaxRadLengths(0.f),*/ energyAboveHighRadLengths(0.f);
-	float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+  */
+//	float layer90EnergySum(0.f), /*showerMaxRadLengths(0.f),*/ energyAboveHighRadLengths(0.f);
+  //	float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+  /*
 	innerLayerRadLengths = 0.;
 	nRadiationLengths90  = 0.;
 	HitEnergyDistanceVector hitEnergyDistanceVector;
@@ -1354,6 +1377,9 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 	const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
 	const unsigned int innerPseudoLayer(pCluster->GetInnerPseudoLayer());
 	const unsigned int firstPseudoLayer(m_pPandora->GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+
+	std::cout << " SCZ MEGADEBUG before layer loop" << std::endl;
+
 
 	for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
 	  {
@@ -1386,6 +1412,8 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 	    nRadiationLengthsInLayer /= static_cast<float>(iter->second->size());
 	    nRadiationLengthsInLastLayer = nRadiationLengthsInLayer;
 	    nRadiationLengths += nRadiationLengthsInLayer;
+
+	    std::cout << " SCZ MEGADEBUG after layer loop" << std::endl;
 
 	    // Number of radiation lengths before cluster start                                                                                                                          
 	    if (innerPseudoLayer == iLayer)
@@ -1444,7 +1472,7 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
 	showerProfileStart = pCluster->GetShowerProfileStart(*m_pPandora);
 	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
 
-
+	std::cout << " SCZ GIGADEBUG VARIABLES CALCULATED " << std::endl;
 
 	//        const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
         CaloHitList pCaloHitList;
@@ -1581,6 +1609,7 @@ void PandoraCMSPFCandProducer::preparePFO(edm::Event& iEvent){
     h_sumPfoE->Fill(_sumPFOEnergy);
     h_nbPFOs->Fill(sumPFOs);
   }
+*/
 }
 
 //Get the track siblings
@@ -1960,6 +1989,164 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 		  << " " << geantTrackIdToSimTrackEnergy[pos->second] << " " << geantTrackIdToPdgId[pos->second] << std::endl;
       }
       
+      //      std::cout << " SCZ MEGADEBUG pCluster->GetMipFraction() " << pCluster->GetMipFraction() << std::endl;
+
+      const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
+      mipFraction = pCluster->GetMipFraction();
+      dCosR = 0.;
+      clusterRms = 0.;
+
+      //      std::cout << " We're gonna get the fit to hits result..." << std::endl;
+
+      const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
+
+      //      std::cout << " IS fit succesful?" << std::endl;
+      //      std::cout << clusterFitResult.IsFitSuccessful()  << std::endl;
+
+      if (clusterFitResult.IsFitSuccessful()) {
+	dCosR = clusterFitResult.GetRadialDirectionCosine();
+	clusterRms = clusterFitResult.GetRms();
+      }
+
+      //      std::cout <<  "  So now we get clusterDirection and Cluster intercept..." << std::endl;
+
+      const CartesianVector &clusterDirection(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+					      pCluster->GetFitToAllHitsResult().GetDirection() : pCluster->GetInitialDirection());
+
+      const CartesianVector &clusterIntercept(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+					      pCluster->GetFitToAllHitsResult().GetIntercept() : CartesianVector(0.f, 0.f, 0.f));
+
+      //      std:: cout << " got those " << std::endl;
+      
+      // Calculate properties of longitudinal shower profile: layer90 and shower max layer                                                                                       \
+                                                                                                                                                                                   
+      bool foundLayer90(false);
+      float layer90EnergySum(0.f); /*showerMaxRadLengths(0.f), energyAboveHighRadLengths(0.f) */
+      float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+      innerLayerRadLengths = 0.;
+      nRadiationLengths90  = 0.;
+      energyAboveHighRadLengths = 0.;
+      HitEnergyDistanceVector hitEnergyDistanceVector;
+
+      //      const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
+      const unsigned int innerPseudoLayer(pCluster->GetInnerPseudoLayer());
+      const unsigned int firstPseudoLayer(m_pPandora->GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+
+      //      std::cout << " got pseudolayers " << std::endl;
+
+      for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
+	{
+	  //	  std::cout << " in layer " << iLayer << std::endl;
+
+	  OrderedCaloHitList::const_iterator iter = orderedCaloHitList.find(iLayer);
+
+	  if ((orderedCaloHitList.end() == iter) || (iter->second->empty()))
+	    {
+	      nRadiationLengths += nRadiationLengthsInLastLayer;
+	      continue;
+	    }
+
+	  // Extract information from the calo hits                                                                                                                              \
+                                                                                                                                                                                   
+	  float energyInLayer(0.f);
+	  float nRadiationLengthsInLayer(0.f);
+
+	  for (CaloHitList::const_iterator hitIter = iter->second->begin(), hitIterEnd = iter->second->end(); hitIter != hitIterEnd; ++hitIter)
+	    {
+	      float cosOpeningAngle(std::fabs((*hitIter)->GetCellNormalVector().GetCosOpeningAngle(clusterDirection)));
+	      cosOpeningAngle = std::max(cosOpeningAngle, 0.3f); // ATTN Hard-coded default value of configurable parameter in particle id plugin                                \
+                                                                                                                                                                                    
+
+	      const float hitEnergy((*hitIter)->GetElectromagneticEnergy());
+	      energyInLayer += hitEnergy;
+	      nRadiationLengthsInLayer += (*hitIter)->GetNCellRadiationLengths() / cosOpeningAngle;
+
+	      const float radialDistance(((*hitIter)->GetPositionVector() - clusterIntercept).GetCrossProduct(clusterDirection).GetMagnitude());
+	      hitEnergyDistanceVector.push_back(HitEnergyDistance(hitEnergy, radialDistance));
+	    }
+
+	  layer90EnergySum += energyInLayer;
+	  nRadiationLengthsInLayer /= static_cast<float>(iter->second->size());
+	  nRadiationLengthsInLastLayer = nRadiationLengthsInLayer;
+	  nRadiationLengths += nRadiationLengthsInLayer;
+
+	  // Number of radiation lengths before cluster start                                                                                                                    \
+                                                                                                                                                                                    
+	  if (innerPseudoLayer == iLayer)
+	    {
+	      nRadiationLengths *= static_cast<float>(innerPseudoLayer + 1 - firstPseudoLayer);
+	      innerLayerRadLengths = nRadiationLengths;
+	    }
+
+	  // Number of radiation lengths before longitudinal layer90                                                                                                             \
+                                                                                                                                                                                    
+	  if (!foundLayer90 && (layer90EnergySum > 0.9f * totalElectromagneticEnergy))
+	    {
+	      foundLayer90 = true;
+	      nRadiationLengths90 = nRadiationLengths;
+	    }
+
+	  // Number of radiation lengths before shower max layer                                                                                                                 \
+                                                                                                                                                                                    
+	  if (energyInLayer > maxEnergyInlayer)
+	    {
+	      showerMaxRadLengths = nRadiationLengths;
+	      maxEnergyInlayer = energyInLayer;
+	    }
+
+	  // Energy above specified "high" number of radiation lengths                                                                                                           \
+                                                                                                                                                                                    
+	  if (nRadiationLengths > 40.f) // ATTN Hard-coded default value of configurable parameter in particle id plugin                                                         \
+                                                                                                                                                                                    
+	    {
+	      energyAboveHighRadLengths += energyInLayer;
+	    }
+	}
+
+      //      std::cout << "done with layer loop " << std::endl;
+
+      // Longitudinal shower profile properties                                                                                                                                  \
+                                                                                                                                                                                    
+      energyAboveHighRadLengthsFrac = (totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f;
+
+      // Transverse shower profile properties                                                                                                                                    \
+                                                                                                                                                                                    
+      std::sort(hitEnergyDistanceVector.begin(), hitEnergyDistanceVector.end(), SortHitsByDistance);
+      float radial90EnergySum(0.f);
+      radial90 = std::numeric_limits<float>::max();
+
+      //      std::cout << " Before HitEnergyDistanceVector loop " << std::endl;
+
+      for (HitEnergyDistanceVector::const_iterator iter = hitEnergyDistanceVector.begin(), iterEnd = hitEnergyDistanceVector.end(); iter != iterEnd; ++iter)
+	{
+	  radial90EnergySum += iter->first;
+	  //      std::cout << " GIGADEBUG radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << std::endl;                                               
+
+	  if (radial90EnergySum > 0.9f * totalElectromagneticEnergy)
+	    {
+	      radial90 = iter->second;
+	      break;
+	    }
+	}
+
+      //      std::cout<< " After HitEnergyDistanceVector loop " << std::endl;
+
+      if (radial90 == std::numeric_limits<float>::max()) {
+	std::cout << " SCZ GIGADEBUG radial90 not set radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << totalElectromagneticEnergy
+		  << " pCluster->GetElectromagneticEnergy() " << pCluster->GetElectromagneticEnergy() << std::endl;
+      }
+
+      // Explicit shower profile properties                                                                                                                                      \
+
+      showerProfileStart = -1.;
+      showerProfileChi2 = -1.;
+      if (clusterFitResult.IsFitSuccessful()) {
+	//	std::cout << " Before pCluster->GetShowerProfileStart " << std::endl;
+	showerProfileStart = pCluster->GetShowerProfileStart(*m_pPandora);
+	//	std::cout << " Before pCluster->GetShowerProfileDiscrepancy " << std::endl;
+	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
+      }
+
       std::cout << " SCZ MEGADEBUG Fill clusterTree" << std::endl;
       if (debugHisto) clusterTree->Fill();
       std::cout << " SCZ MEGADEBUG Filled clusterTree" << std::endl;
@@ -2249,6 +2436,7 @@ void PandoraCMSPFCandProducer::beginJob()
     clusterTree->Branch("radial90",&radial90);
     clusterTree->Branch("showerProfileStart",&showerProfileStart);
     clusterTree->Branch("showerProfileChi2",&showerProfileChi2);
+    clusterTree->Branch("nRadiationLengths90",&nRadiationLengths90);
 
     
     TH1::AddDirectory(oldAddDir); 
