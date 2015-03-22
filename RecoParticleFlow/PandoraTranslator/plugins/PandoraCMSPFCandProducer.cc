@@ -1868,6 +1868,7 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	    auto currentRecoDetId = pfrechits.at(hit_index->second).detId();
 	    int layer = pfrechits.at(hit_index->second).layer();
 	    float currentRecoDetEnergy = pfrechits.at(hit_index->second).energy();
+
 	    const DetId& detid(currentRecoDetId);
 
 	    if (detid.subdetId() == 3) currentRecoDetEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
@@ -1875,27 +1876,18 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	    if (detid.subdetId() == 5) currentRecoDetEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());
 
 	    sumEneRecHit += currentRecoDetEnergy;
+	    auto shrange = m_recoDetIdToSimHit.equal_range(currentRecoDetId);
+	    for( auto iter = shrange.first; iter != shrange.second; ++iter ) {
+	      const unsigned det = std::get<0>(iter->second);
+	      const unsigned hit_idx = std::get<1>(iter->second);
+	      const float fraction = std::get<2>(iter->second);
 
-	    //	    std::cout << " SCZ GIGADEBUG rechit layer " << layer << " x " << pfrechits.at(hit_index->second).position().x()
-	    //		      << " y " << pfrechits.at(hit_index->second).position().y()
-	    //		      << " z " << pfrechits.at(hit_index->second).position().z() << std::endl;
+	      auto my_hit = theHGCHits[det][hit_idx];
+	      float currentSimHitEnergy = my_hit.energy() * fraction;
 
-
-	    //	    std::pair<unsigned,unsigned> simHitIndices = recoDetIdToSimHitIndex.
-	    //	      auto range = my_map.equal_range(reco det id);
-	    auto range = recoDetIdToSimHitIndex.equal_range(currentRecoDetId);
-	    //	    std::cout << "   SCZ GIGADEBUG just called equal_range on " << currentRecoDetId << std::endl;
-
-	    for (auto index_iter = range.first ; index_iter != range.second ; index_iter++) {
-	      //	      std::cout << " SCZ GIGADEBUG " << (index_iter->first) << " " << (index_iter->second.first) << " " << (index_iter->second.first) << std::endl;
-	      auto my_hit = theHGCHits[index_iter->second.first][index_iter->second.second];
-	      float currentSimHitEnergy = my_hit.energy();                                                                                                                    
-	      
-
-	      if (index_iter->second.first == 0) currentSimHitEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
-	      if (index_iter->second.first == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
-	      if (index_iter->second.first == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());                                                                 
-	      sumEneRecHit += currentRecoDetEnergy;                                                                                                                            
+	      if (det == 0) currentSimHitEnergy *= (m_calibEE.GetEMCalib(layer,eta) * m_calibEE.GetADC2GeV());
+	      if (det == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
+	      if (det == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());                                              
 	      
 	      int gid = my_hit.geantTrackId();                                                                                                                                
 	      sumEneGp += currentSimHitEnergy;                                                                                                                                 
@@ -1988,27 +1980,18 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	std::cout << "     SCZ GIGADEBUG " << counter++ << " " << pos->first << " " << pos->second << " " << geantTrackIdToSimHitEnergy[pos->second]
 		  << " " << geantTrackIdToSimTrackEnergy[pos->second] << " " << geantTrackIdToPdgId[pos->second] << std::endl;
       }
-      
-      //      std::cout << " SCZ MEGADEBUG pCluster->GetMipFraction() " << pCluster->GetMipFraction() << std::endl;
 
       const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
       mipFraction = pCluster->GetMipFraction();
       dCosR = 0.;
       clusterRms = 0.;
 
-      //      std::cout << " We're gonna get the fit to hits result..." << std::endl;
-
       const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
-
-      //      std::cout << " IS fit succesful?" << std::endl;
-      //      std::cout << clusterFitResult.IsFitSuccessful()  << std::endl;
 
       if (clusterFitResult.IsFitSuccessful()) {
 	dCosR = clusterFitResult.GetRadialDirectionCosine();
 	clusterRms = clusterFitResult.GetRms();
       }
-
-      //      std::cout <<  "  So now we get clusterDirection and Cluster intercept..." << std::endl;
 
       const CartesianVector &clusterDirection(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
 					      pCluster->GetFitToAllHitsResult().GetDirection() : pCluster->GetInitialDirection());
@@ -2016,10 +1999,6 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
       const CartesianVector &clusterIntercept(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
 					      pCluster->GetFitToAllHitsResult().GetIntercept() : CartesianVector(0.f, 0.f, 0.f));
 
-      //      std:: cout << " got those " << std::endl;
-      
-      // Calculate properties of longitudinal shower profile: layer90 and shower max layer                                                                                       \
-                                                                                                                                                                                   
       bool foundLayer90(false);
       float layer90EnergySum(0.f); /*showerMaxRadLengths(0.f), energyAboveHighRadLengths(0.f) */
       float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
@@ -2036,8 +2015,6 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 
       for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
 	{
-	  //	  std::cout << " in layer " << iLayer << std::endl;
-
 	  OrderedCaloHitList::const_iterator iter = orderedCaloHitList.find(iLayer);
 
 	  if ((orderedCaloHitList.end() == iter) || (iter->second->empty()))
@@ -2046,17 +2023,14 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	      continue;
 	    }
 
-	  // Extract information from the calo hits                                                                                                                              \
-                                                                                                                                                                                   
 	  float energyInLayer(0.f);
 	  float nRadiationLengthsInLayer(0.f);
-
+	  
 	  for (CaloHitList::const_iterator hitIter = iter->second->begin(), hitIterEnd = iter->second->end(); hitIter != hitIterEnd; ++hitIter)
 	    {
 	      float cosOpeningAngle(std::fabs((*hitIter)->GetCellNormalVector().GetCosOpeningAngle(clusterDirection)));
-	      cosOpeningAngle = std::max(cosOpeningAngle, 0.3f); // ATTN Hard-coded default value of configurable parameter in particle id plugin                                \
-                                                                                                                                                                                    
-
+	      cosOpeningAngle = std::max(cosOpeningAngle, 0.3f); // ATTN Hard-coded default value of configurable parameter in particle id plugin
+	      
 	      const float hitEnergy((*hitIter)->GetElectromagneticEnergy());
 	      energyInLayer += hitEnergy;
 	      nRadiationLengthsInLayer += (*hitIter)->GetNCellRadiationLengths() / cosOpeningAngle;
@@ -2069,58 +2043,37 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	  nRadiationLengthsInLayer /= static_cast<float>(iter->second->size());
 	  nRadiationLengthsInLastLayer = nRadiationLengthsInLayer;
 	  nRadiationLengths += nRadiationLengthsInLayer;
-
-	  // Number of radiation lengths before cluster start                                                                                                                    \
-                                                                                                                                                                                    
+	  
 	  if (innerPseudoLayer == iLayer)
 	    {
 	      nRadiationLengths *= static_cast<float>(innerPseudoLayer + 1 - firstPseudoLayer);
 	      innerLayerRadLengths = nRadiationLengths;
 	    }
-
-	  // Number of radiation lengths before longitudinal layer90                                                                                                             \
-                                                                                                                                                                                    
 	  if (!foundLayer90 && (layer90EnergySum > 0.9f * totalElectromagneticEnergy))
 	    {
 	      foundLayer90 = true;
 	      nRadiationLengths90 = nRadiationLengths;
 	    }
-
-	  // Number of radiation lengths before shower max layer                                                                                                                 \
-                                                                                                                                                                                    
 	  if (energyInLayer > maxEnergyInlayer)
 	    {
 	      showerMaxRadLengths = nRadiationLengths;
 	      maxEnergyInlayer = energyInLayer;
 	    }
-
-	  // Energy above specified "high" number of radiation lengths                                                                                                           \
-                                                                                                                                                                                    
-	  if (nRadiationLengths > 40.f) // ATTN Hard-coded default value of configurable parameter in particle id plugin                                                         \
-                                                                                                                                                                                    
+	  if (nRadiationLengths > 40.f) // ATTN Hard-coded default value of configurable parameter in particle id plugin
 	    {
 	      energyAboveHighRadLengths += energyInLayer;
 	    }
 	}
 
-      //      std::cout << "done with layer loop " << std::endl;
-
-      // Longitudinal shower profile properties                                                                                                                                  \
-                                                                                                                                                                                    
       energyAboveHighRadLengthsFrac = (totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f;
 
-      // Transverse shower profile properties                                                                                                                                    \
-                                                                                                                                                                                    
       std::sort(hitEnergyDistanceVector.begin(), hitEnergyDistanceVector.end(), SortHitsByDistance);
       float radial90EnergySum(0.f);
       radial90 = std::numeric_limits<float>::max();
 
-      //      std::cout << " Before HitEnergyDistanceVector loop " << std::endl;
-
       for (HitEnergyDistanceVector::const_iterator iter = hitEnergyDistanceVector.begin(), iterEnd = hitEnergyDistanceVector.end(); iter != iterEnd; ++iter)
 	{
 	  radial90EnergySum += iter->first;
-	  //      std::cout << " GIGADEBUG radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << std::endl;                                               
 
 	  if (radial90EnergySum > 0.9f * totalElectromagneticEnergy)
 	    {
@@ -2129,21 +2082,10 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	    }
 	}
 
-      //      std::cout<< " After HitEnergyDistanceVector loop " << std::endl;
-
-      if (radial90 == std::numeric_limits<float>::max()) {
-	std::cout << " SCZ GIGADEBUG radial90 not set radial90EnergySum " << radial90EnergySum << " totalElectromagneticEnergy " << totalElectromagneticEnergy
-		  << " pCluster->GetElectromagneticEnergy() " << pCluster->GetElectromagneticEnergy() << std::endl;
-      }
-
-      // Explicit shower profile properties                                                                                                                                      \
-
       showerProfileStart = -1.;
       showerProfileChi2 = -1.;
       if (clusterFitResult.IsFitSuccessful()) {
-	//	std::cout << " Before pCluster->GetShowerProfileStart " << std::endl;
 	showerProfileStart = pCluster->GetShowerProfileStart(*m_pPandora);
-	//	std::cout << " Before pCluster->GetShowerProfileDiscrepancy " << std::endl;
 	showerProfileChi2 = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
       }
 
@@ -2163,6 +2105,205 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
       }
     }
   }//end pfos
+
+  for (unsigned int isimtk = 0; isimtk < theSimTracks.size(); isimtk++){
+    int gid = (int)theSimTracks[isimtk].trackId();
+    gpTree_energy = geantTrackIdToSimTrackEnergy[gid];
+    gpTree_eta = theSimTracks[isimtk].trackerSurfacePosition().Eta();
+    gpTree_phi = theSimTracks[isimtk].trackerSurfacePosition().Phi();
+    gpTree_pdgId = geantTrackIdToPdgId[gid];
+    gpTree_startRadius = geantTrackIdToStartingRadius[gid];
+    gpTree_ncl = 0;
+
+    std::multimap<float,size_t,std::greater<float> > pfIdxByEnergy;
+
+    for (auto itPFO = pfoBegin; itPFO != pPfoList->cend(); ++itPFO){
+      size_t pfo_idx = std::distance(pfoBegin,itPFO);
+      float temp_clDeposit = 0.;
+
+      const TrackList &trackList((*itPFO)->GetTrackList());
+      const ClusterList &clusterList((*itPFO)->GetClusterList());
+      assert (clusterList.size()<=1); // SCZ
+      assert (trackList.size()<=1); // SCZ
+      if (clusterList.size() <= 0) continue;
+      auto clusterIter = clusterList.cbegin();
+      const Cluster *pCluster = (*clusterIter);
+      const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
+      
+      for (auto layerIter = orderedCaloHitList.begin(), layerIterEnd = orderedCaloHitList.end(); layerIter != layerIterEnd; ++layerIter) {
+        const CaloHitList& hits_in_layer = *(layerIter->second);
+        for( auto hitIter = hits_in_layer.cbegin(), hitIterEnd = hits_in_layer.cend(); hitIter != hitIterEnd; ++hitIter ) {
+          auto hit_index = recHitMap.find((*hitIter)->GetParentCaloHitAddress());
+          if( hit_index != recHitMap.end() ) {
+	    reco::PFRecHitRef ref(rechith,hit_index->second);
+            auto currentRecoDetId = pfrechits.at(hit_index->second).detId();
+            int layer = pfrechits.at(hit_index->second).layer();
+
+            auto shrange = m_recoDetIdToSimHit.equal_range(currentRecoDetId);
+            for( auto iter = shrange.first; iter != shrange.second; ++iter ) {
+              const unsigned det = std::get<0>(iter->second);
+              const unsigned hit_idx = std::get<1>(iter->second);
+              const float fraction = std::get<2>(iter->second);
+
+              auto my_hit = theHGCHits[det][hit_idx];
+
+	      if (my_hit.geantTrackId() != gid) continue;
+
+              float currentSimHitEnergy = my_hit.energy() * fraction;
+
+	      if (det == 0) currentSimHitEnergy *= (m_calibEE.GetEMCalib(layer,gpTree_eta) * m_calibEE.GetADC2GeV());
+              if (det == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,gpTree_eta) * m_calibHEF.GetADC2GeV());
+              if (det == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,gpTree_eta) * m_calibHEB.GetADC2GeV());
+
+	      temp_clDeposit += currentSimHitEnergy;
+	    }
+	  }
+	}
+      }
+
+      if (temp_clDeposit > 0.)  {
+	pfIdxByEnergy.insert(std::make_pair(temp_clDeposit,pfo_idx));
+      }
+    }
+
+    for (auto pfEnergyIter = pfIdxByEnergy.begin(); pfEnergyIter != pfIdxByEnergy.end() ; pfEnergyIter++) {
+      auto itPFO = pfoBegin;
+      for (unsigned int i = 0 ; i < pfEnergyIter->second; i++) ++itPFO;
+
+      gpTree_clDeposit[gpTree_ncl] = pfEnergyIter->first;
+
+      const TrackList &trackList((*itPFO)->GetTrackList());
+      if (trackList.size() == 1) {
+	TrackVector trackVector(trackList.begin(), trackList.end());
+	TrackVector::const_iterator trackIter = trackVector.begin();
+	const pandora::Track *pPandoraTrack = (*trackIter);
+	const TrackState &trackState(pPandoraTrack->GetTrackStateAtStart());
+	const CartesianVector &momentum(trackState.GetMomentum());
+	gpTree_clTrackP[gpTree_ncl] = momentum.GetMagnitude();
+      } else {
+	gpTree_clTrackP[gpTree_ncl] = -1.;
+      }
+
+      const ClusterList &clusterList((*itPFO)->GetClusterList());
+      auto clusterIter = clusterList.cbegin();
+      const Cluster *pCluster = (*clusterIter);
+      const OrderedCaloHitList &orderedCaloHitList(pCluster->GetOrderedCaloHitList());
+
+      const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
+
+      gpTree_clTrackSeeded[gpTree_ncl] = (int)pCluster->IsTrackSeeded(); 
+      gpTree_clTotalEnergy[gpTree_ncl] = totalElectromagneticEnergy;
+
+      gpTree_mipFraction[gpTree_ncl] = pCluster->GetMipFraction();
+      gpTree_dCosR[gpTree_ncl] = 0.;
+      gpTree_clusterRms[gpTree_ncl] = 0.;
+
+      const ClusterFitResult &clusterFitResult(pCluster->GetFitToAllHitsResult());
+
+      if (clusterFitResult.IsFitSuccessful()) {
+        gpTree_dCosR[gpTree_ncl] = clusterFitResult.GetRadialDirectionCosine();
+	gpTree_clusterRms[gpTree_ncl] = clusterFitResult.GetRms();
+      }
+
+      const CartesianVector &clusterDirection(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+                                              pCluster->GetFitToAllHitsResult().GetDirection() : pCluster->GetInitialDirection());
+
+      const CartesianVector &clusterIntercept(pCluster->GetFitToAllHitsResult().IsFitSuccessful() ?
+                                              pCluster->GetFitToAllHitsResult().GetIntercept() : CartesianVector(0.f, 0.f, 0.f));
+
+      bool foundLayer90(false);
+      float layer90EnergySum(0.f); /*showerMaxRadLengths(0.f), energyAboveHighRadLengths(0.f) */
+      float nRadiationLengths(0.f), /*nRadiationLengths90(0.f),*/ nRadiationLengthsInLastLayer(0.f), maxEnergyInlayer(0.f);
+      gpTree_innerLayerRadLengths[gpTree_ncl] = 0.;
+      gpTree_nRadiationLengths90[gpTree_ncl]  = 0.;
+      gpTree_energyAboveHighRadLengths[gpTree_ncl] = 0.;
+      HitEnergyDistanceVector hitEnergyDistanceVector;
+
+      const unsigned int innerPseudoLayer(pCluster->GetInnerPseudoLayer());
+      const unsigned int firstPseudoLayer(m_pPandora->GetPlugins()->GetPseudoLayerPlugin()->GetPseudoLayerAtIp());
+
+      for (unsigned int iLayer = innerPseudoLayer, outerPseudoLayer = pCluster->GetOuterPseudoLayer(); iLayer <= outerPseudoLayer; ++iLayer)
+        {
+	  OrderedCaloHitList::const_iterator iter = orderedCaloHitList.find(iLayer);
+
+          if ((orderedCaloHitList.end() == iter) || (iter->second->empty()))
+            {
+              nRadiationLengths += nRadiationLengthsInLastLayer;
+              continue;
+            }
+
+          float energyInLayer(0.f);
+          float nRadiationLengthsInLayer(0.f);
+
+          for (CaloHitList::const_iterator hitIter = iter->second->begin(), hitIterEnd = iter->second->end(); hitIter != hitIterEnd; ++hitIter)
+            {
+              float cosOpeningAngle(std::fabs((*hitIter)->GetCellNormalVector().GetCosOpeningAngle(clusterDirection)));
+              cosOpeningAngle = std::max(cosOpeningAngle, 0.3f); // ATTN Hard-coded default value of configurable parameter in particle id plugin                                  
+
+              const float hitEnergy((*hitIter)->GetElectromagneticEnergy());
+              energyInLayer += hitEnergy;
+              nRadiationLengthsInLayer += (*hitIter)->GetNCellRadiationLengths() / cosOpeningAngle;
+
+              const float radialDistance(((*hitIter)->GetPositionVector() - clusterIntercept).GetCrossProduct(clusterDirection).GetMagnitude());
+              hitEnergyDistanceVector.push_back(HitEnergyDistance(hitEnergy, radialDistance));
+            }
+
+          layer90EnergySum += energyInLayer;
+          nRadiationLengthsInLayer /= static_cast<float>(iter->second->size());
+          nRadiationLengthsInLastLayer = nRadiationLengthsInLayer;
+          nRadiationLengths += nRadiationLengthsInLayer;
+
+          if (innerPseudoLayer == iLayer)
+            {
+              nRadiationLengths *= static_cast<float>(innerPseudoLayer + 1 - firstPseudoLayer);
+              gpTree_innerLayerRadLengths[gpTree_ncl] = nRadiationLengths;
+            }
+          if (!foundLayer90 && (layer90EnergySum > 0.9f * totalElectromagneticEnergy))
+            {
+              foundLayer90 = true;
+              gpTree_nRadiationLengths90[gpTree_ncl] = nRadiationLengths;
+            }
+          if (energyInLayer > maxEnergyInlayer)
+            {
+              gpTree_showerMaxRadLengths[gpTree_ncl] = nRadiationLengths;
+              maxEnergyInlayer = energyInLayer;
+            }
+          if (nRadiationLengths > 40.f) // ATTN Hard-coded default value of configurable parameter in particle id plugin                                                           
+            {
+              gpTree_energyAboveHighRadLengths[gpTree_ncl] += energyInLayer;
+            }
+	}
+
+      gpTree_energyAboveHighRadLengthsFrac[gpTree_ncl] = (totalElectromagneticEnergy > 0.f) ? energyAboveHighRadLengths / totalElectromagneticEnergy : 0.f;
+      
+      std::sort(hitEnergyDistanceVector.begin(), hitEnergyDistanceVector.end(), SortHitsByDistance);
+      float radial90EnergySum(0.f);
+      gpTree_radial90[gpTree_ncl] = std::numeric_limits<float>::max();
+
+      for (HitEnergyDistanceVector::const_iterator iter = hitEnergyDistanceVector.begin(), iterEnd = hitEnergyDistanceVector.end(); iter != iterEnd; ++iter)
+	{
+          radial90EnergySum += iter->first;
+
+          if (radial90EnergySum > 0.9f * totalElectromagneticEnergy)
+            {
+              gpTree_radial90[gpTree_ncl] = iter->second;
+              break;
+            }
+        }
+
+      gpTree_showerProfileStart[gpTree_ncl] = -1.;
+      gpTree_showerProfileChi2[gpTree_ncl] = -1.;
+      if (clusterFitResult.IsFitSuccessful()) {
+        gpTree_showerProfileStart[gpTree_ncl] = pCluster->GetShowerProfileStart(*m_pPandora);
+        gpTree_showerProfileChi2[gpTree_ncl] = pCluster->GetShowerProfileDiscrepancy(*m_pPandora);
+      }
+
+      gpTree_ncl++;
+    }
+    gpTree->Fill();
+  }
+
+
   // put the clusters in the event and get the handle back
   edm::OrphanHandle<PFClusterCollection> clusterHandle = iEvent.put(clusters);
   
@@ -2387,6 +2528,7 @@ void PandoraCMSPFCandProducer::beginJob()
     gpTree->Branch("pdgId",&gpTree_pdgId);
     gpTree->Branch("startRadius",&gpTree_startRadius);
     gpTree->Branch("ncl",&gpTree_ncl);
+    gpTree->Branch("clTrackP",gpTree_clTrackP,"clTrackP[ncl]/F");
     gpTree->Branch("clTrackSeeded",gpTree_clTrackSeeded,"clTrackSeeded[ncl]/I");
     gpTree->Branch("clDeposit",gpTree_clDeposit,"clDeposit[ncl]/F");
     gpTree->Branch("clTotalEnergy",gpTree_clTotalEnergy,"clTotalEnergy[ncl]/F");

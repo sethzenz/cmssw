@@ -339,6 +339,7 @@ private:
   int gpTree_pdgId;
   int gpTree_ncl;
   int gpTree_clTrackSeeded[CLMAX];
+  float gpTree_clTrackP[CLMAX];
   float gpTree_clTotalEnergy[CLMAX];
   float gpTree_clDeposit[CLMAX];
   float gpTree_mipFraction[CLMAX];
