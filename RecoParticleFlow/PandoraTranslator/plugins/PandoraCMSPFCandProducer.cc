@@ -1880,7 +1880,8 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	    for( auto iter = shrange.first; iter != shrange.second; ++iter ) {
 	      const unsigned det = std::get<0>(iter->second);
 	      const unsigned hit_idx = std::get<1>(iter->second);
-	      const float fraction = std::get<2>(iter->second);
+	      //	      const float fraction = std::get<2>(iter->second);
+	      const float fraction = 1.;
 
 	      auto my_hit = theHGCHits[det][hit_idx];
 	      float currentSimHitEnergy = my_hit.energy() * fraction;
@@ -2143,7 +2144,8 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
             for( auto iter = shrange.first; iter != shrange.second; ++iter ) {
               const unsigned det = std::get<0>(iter->second);
               const unsigned hit_idx = std::get<1>(iter->second);
-              const float fraction = std::get<2>(iter->second);
+	      //              const float fraction = std::get<2>(iter->second);
+	      const float fraction = 1.;
 
               auto my_hit = theHGCHits[det][hit_idx];
 
