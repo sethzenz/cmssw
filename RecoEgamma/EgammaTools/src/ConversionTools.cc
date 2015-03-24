@@ -294,7 +294,8 @@ reco::ConversionRef ConversionTools::matchedConversion(const reco::SuperCluster 
 
 //--------------------------------------------------------------------------------------------------
 bool ConversionTools::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, const edm::Handle<reco::GsfElectronCollection> &eleCol,
-                   const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot, bool allowCkfMatch, float lxyMin, float probMin, unsigned int nHitsBeforeVtxMax)
+                   const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot, bool allowCkfMatch,
+					       float lxyMin, float probMin, unsigned int nHitsBeforeVtxMax)
 {
 
   //check if a given SuperCluster matches to at least one GsfElectron having zero expected inner hits
@@ -321,6 +322,32 @@ bool ConversionTools::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, 
 
 }
 
+bool ConversionTools::hasMatchedPromptElectron(const reco::SuperClusterRef &sc, const edm::Handle<reco::GsfElectronCollection> &eleCol,
+					       const edm::Handle<reco::ConversionCollection> &convCol, const math::XYZPoint &beamspot, float lxyMin, float probMin, unsigned int nHitsBeforeVtxMax)
+{
+
+  //check if a given SuperCluster matches to at least one GsfElectron having zero expected inner hits
+  //and not matching any conversion in the collection passing the quality cuts
+
+  if (sc.isNull()) return false;
+  
+  for (GsfElectronCollection::const_iterator it = eleCol->begin(); it!=eleCol->end(); ++it) {
+    //match electron to supercluster
+    if (it->reco::GsfElectron::superCluster()!=sc) continue;
+
+    //check expected inner hits
+    if (it->gsfTrack()->hitPattern().numberOfHits(reco::HitPattern::MISSING_INNER_HITS) > 0) continue;
+
+    //check if electron is matching to a conversion
+    if (hasMatchedConversion(*it,convCol,beamspot,lxyMin,probMin,nHitsBeforeVtxMax)) continue;
+   
+   
+    return true;
+  }
+  
+  return false;
+
+}
 
 //--------------------------------------------------------------------------------------------------
 reco::GsfElectronRef ConversionTools::matchedPromptElectron(const reco::SuperClusterRef &sc, const edm::Handle<reco::GsfElectronCollection> &eleCol,
