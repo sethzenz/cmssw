@@ -1977,6 +1977,41 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	gpEneFrac[counter] = pos->first / sumEneGp; // SCZ changed here denominator from energy
 	gpEneTotal[counter] = geantTrackIdToSimTrackEnergy[pos->second];
 	gpPdgId[counter] = geantTrackIdToPdgId[pos->second];
+        // get parent info vtx.processType()
+        gpParentPdgId[counter] = std::numeric_limits<float>::max();
+        gpGrandParentPdgId[counter] = std::numeric_limits<float>::max();
+        unsigned child_idx = m_barCodesToSimTrack[pos->second];
+        const SimTrack& child = simTk->at(child_idx);
+        if( !child.noVertex() && !child.noGenpart() ) { // we have a gen particle based sim track, there is no grandparent
+          auto parent_genpart = m_barCodesToGenParticle.find(child.genpartIndex());
+          if( parent_genpart != m_barCodesToGenParticle.end() ) {
+            const reco::GenParticle& parent = genpart->at(parent_genpart->second);
+            gpParentPdgId[counter] = parent.pdgId(); // parent track is the gen particle in this case            
+          } else {
+            throw cms::Exception("GenParticleNotFound")
+              << "couldn't find gen particle" << child.genpartIndex() << "!";
+          }
+        } else if( !child.noVertex() ) { // we have sim track from geant interaction, check for grand parent
+          auto parent_track = m_simVertexToSimTrackParent.find(child.vertIndex());
+          const SimTrack& parent = simTk->at(m_barCodesToSimTrack.find(parent_track->second)->second);
+          gpParentPdgId[counter] = parent.type();
+          // now we find the grand parent info, two cases either it's another track from geant or it is gen particle
+          // this should be a recursive function, but I'm lazy
+          if( !parent.noVertex() && !parent.noGenpart() ) {
+            auto gparent_genpart = m_barCodesToGenParticle.find(parent.genpartIndex());
+            if( gparent_genpart != m_barCodesToGenParticle.end() ) {
+              const reco::GenParticle& gparent = genpart->at(gparent_genpart->second);
+              gpGrandParentPdgId[counter] = gparent.pdgId(); // parent track is the gen particle in this case
+            } else {
+              throw cms::Exception("GenParticleNotFound")
+                << "couldn't find gen particle" << parent.genpartIndex() << "!";
+            }
+          } else if( !parent.noVertex() ) {
+            auto gparent_track = m_simVertexToSimTrackParent.find(parent.vertIndex());
+            const SimTrack& gparent = simTk->at(m_barCodesToSimTrack.find(gparent_track->second)->second);
+            gpGrandParentPdgId[counter] = gparent.type();
+          }
+        }
 	gpStartRadius[counter] = geantTrackIdToStartingRadius[pos->second];
 	std::cout << "     SCZ GIGADEBUG " << counter++ << " " << pos->first << " " << pos->second << " " << geantTrackIdToSimHitEnergy[pos->second]
 		  << " " << geantTrackIdToSimTrackEnergy[pos->second] << " " << geantTrackIdToPdgId[pos->second] << std::endl;
@@ -2569,6 +2604,8 @@ void PandoraCMSPFCandProducer::beginJob()
     clusterTree->Branch("gpEneFrac",gpEneFrac,"gpEneFrac[ngp]/F");
     clusterTree->Branch("gpEneTotal",gpEneTotal,"gpEneTotal[ngp]/F");
     clusterTree->Branch("gpPdgId",gpPdgId,"gpPdgId[ngp]/F");
+    clusterTree->Branch("gpPdgId",gpParentPdgId,"gpParentPdgId[ngp]/F");
+    clusterTree->Branch("gpPdgId",gpGrandParentPdgId,"gpGrandParentPdgId[ngp]/F");
     clusterTree->Branch("gpStartRadius",gpStartRadius,"gpStartRadius[ngp]/F");
     clusterTree->Branch("mipFraction",&mipFraction);
     clusterTree->Branch("dCosR",&dCosR);

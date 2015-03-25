@@ -362,6 +362,8 @@ private:
   int ngp;
   float gpEneFrac[GPMAX];
   float gpPdgId[GPMAX];
+  float gpParentPdgId[GPMAX];
+  float gpGrandParentPdgId[GPMAX];
   float gpEneTotal[GPMAX];
   float gpStartRadius[GPMAX];
   float mipFraction;
