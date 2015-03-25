@@ -26,6 +26,10 @@
 #include "Geometry/CaloGeometry/interface/CaloSubdetectorGeometry.h"
 #include "DataFormats/GeometrySurface/interface/BoundDisk.h"
 
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
+
 #include "DataFormats/ParticleFlowReco/interface/PFRecHit.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
 
@@ -63,6 +67,8 @@ class TrackerGeometry;
 class PropagatorWithMaterial;
 
 // namespace pandora {class Pandora;}
+
+#include <tuple>
 
 //helper class to store calibration info for HGC
 class CalibHGC {
@@ -214,11 +220,13 @@ public:
 
   void prepareTrack(edm::Event& iEvent);
   void prepareHits(edm::Event& iEvent);
-  void preparemcParticle(edm::Event& iEvent);
-  void ProcessRecHits(const reco::PFRecHit* rh, unsigned int index, const HGCalGeometry* geom, CalibHGC& calib, int& nCaloHits, int& nNotFound, reco::Vertex& pv,
+  void prepareMCParticleAssociations(edm::Event& iEvent);
+  void preparePandoraMCParticles(edm::Event& iEvent);
+  void ProcessRecHits(const edm::Handle<std::vector<SimTrack> >&,
+                      const std::vector<edm::Handle<std::vector<PCaloHit> > >&,
+                      const reco::PFRecHit* rh, unsigned int index, const HGCalGeometry* geom, CalibHGC& calib, int& nCaloHits, int& nNotFound, reco::Vertex& pv,
                      const pandora::HitType hitType, const pandora::HitRegion hitRegion, PandoraApi::RectangularCaloHitParameters& caloHitParameters);
 
-  
   void preparePFO(edm::Event& iEvent);
   void prepareGeometry();
   void SetDefaultSubDetectorParameters(const std::string &subDetectorName, const pandora::SubDetectorType subDetectorType, PandoraApi::Geometry::SubDetector::Parameters &parameters) const;
@@ -288,9 +296,18 @@ private:
   edm::InputTag    inputTagHGCrechit_;
   edm::InputTag    inputTagtPRecoTrackAsssociation_;
   edm::InputTag    inputTagGenParticles_;
+  edm::InputTag    inputTagSimTracks_;
+  edm::InputTag    inputTagSimVertices_;
+  std::vector<edm::InputTag> inputSimHits_;
   edm::InputTag    inputTagGeneralTracks_;
-  //std::vector<std::string> mFileNames;
   
+  //std::vector<std::string> mFileNames;
+
+  // SCZ
+  edm::InputTag inputTagSimHGCHitsEE_;
+  edm::InputTag inputTagSimHGCHitsHEfront_;
+  edm::InputTag inputTagSimHGCHitsHEback_;
+
   // hash tables to translate back to CMSSW collection index from Pandora
   std::unordered_map<const void*,unsigned int> recHitMap;
   std::unordered_map<const void*,unsigned int> recTrackMap;
@@ -307,12 +324,59 @@ private:
   std::vector<ReferenceCountingPointer<BoundDisk> > _plusSurface,_minusSurface;
   std::unique_ptr<PropagatorWithMaterial> _mat_prop;  
 
+  
   TFile * file;
   TTree *mytree;
   double ene_track, ene_match_track,ene_match_em,ene_match_had, ene_had,ene_em,ene_match,mass_match,pid_match,pT_match,charge_match;
   double ene_true,mass_true,pid_true,pT_true,charge_true;
   double first_layer,last_layer,first_layer_match,last_layer_match;
   int runno, eventno, lumi , nbPFOs;
+
+
+  # define CLMAX 100
+  TTree *gpTree;
+  float gpTree_energy, gpTree_eta, gpTree_phi, gpTree_startRadius;
+  int gpTree_pdgId;
+  int gpTree_ncl;
+  int gpTree_clTrackSeeded[CLMAX];
+  float gpTree_clTrackP[CLMAX];
+  float gpTree_clTotalEnergy[CLMAX];
+  float gpTree_clDeposit[CLMAX];
+  float gpTree_mipFraction[CLMAX];
+  float gpTree_dCosR[CLMAX];
+  float gpTree_clusterRms[CLMAX];
+  float gpTree_innerLayerRadLengths[CLMAX];
+  float gpTree_nRadiationLengths90[CLMAX];
+  float gpTree_showerMaxRadLengths[CLMAX];
+  float gpTree_energyAboveHighRadLengths[CLMAX];
+  float gpTree_energyAboveHighRadLengthsFrac[CLMAX];
+  float gpTree_radial90[CLMAX];
+  float gpTree_showerProfileStart[CLMAX];
+  float gpTree_showerProfileChi2[CLMAX];
+
+
+  # define GPMAX 100
+  TTree *clusterTree;
+  float energy, trackP, eta, phi, sumEneGp, sumEneRecHit;
+  int pfPdgId, trackSeeded;
+  int ngp;
+  float gpEneFrac[GPMAX];
+  float gpPdgId[GPMAX];
+  float gpEneTotal[GPMAX];
+  float gpStartRadius[GPMAX];
+  float mipFraction;
+  float dCosR;
+  float clusterRms;
+  float innerLayerRadLengths;
+  float nRadiationLengths90;
+  float showerMaxRadLengths;
+  float energyAboveHighRadLengths;
+  float energyAboveHighRadLengthsFrac;
+  float radial90;
+  float showerProfileStart;
+  float showerProfileChi2;
+
+  
 
   int isDecBefCal;
   double RminVtxDaughter[2];
@@ -356,6 +420,19 @@ private:
   std::map<ForwardSubdetector,TH1F*> h_hitEperLayer_HAD;
   std::map<ForwardSubdetector,double*> m_hitEperLayer_HAD;
 
+  typedef std::unordered_multimap<unsigned,unsigned> SimVertexToTracksMap;
+  typedef std::unordered_map<unsigned,unsigned> SimTrackToVertexMap;
+  typedef std::unordered_map<unsigned,unsigned> BarCodeMap;
+  typedef std::unordered_map<unsigned,unsigned> SimHitsToSimTrackMap;
+  typedef std::unordered_multimap<uint32_t,std::tuple<unsigned,unsigned,float> > RecoDetIdToSimHitsMap;
+  
+  // MC particle book keeping and cheated pattern recognition
+  RecoDetIdToSimHitsMap m_recoDetIdToSimHit;
+  SimHitsToSimTrackMap  m_simHitsToSimTracks;
+  SimTrackToVertexMap   m_simTrackToStartSimVertex, m_simTrackToStartSimVertexEnd;
+  SimVertexToTracksMap m_simVertexToSimTracks, m_simTrackToSimVertex,  m_simVertexToSimTrackParent;
+  BarCodeMap m_barCodesToGenParticle, m_barCodesToSimTrack, m_barCodesToSimVertices, m_barCodesToSimHits;
+  
   TH2F * h2_Calo_EM_hcalEecalE;
   TH2F * h2_Calo_Had_hcalEecalE;
 

@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
-pandorapfanew = cms.EDProducer('PandoraCMSPFCandProducer',
+pandorapfanew = cms.EDProducer(
+    'PandoraCMSPFCandProducer',
     debugPrint = cms.bool(False), #for cout statements
     debugHisto = cms.bool(False), #for diagnostic/calibration histograms
     useRecoTrackAsssociation = cms.bool(False), #needed to turn off for 140PU                                                               
@@ -16,6 +17,13 @@ pandorapfanew = cms.EDProducer('PandoraCMSPFCandProducer',
 #   absorber thickness correction
 #   energyCorrMethod = cms.string('WEIGHTING'),
     energyWeightFile = cms.FileInPath('RecoParticleFlow/PandoraTranslator/data/energyWeight.txt'),
+
+    #sim info
+    simTracks = cms.InputTag('g4SimHits'),
+    simVertices = cms.InputTag('g4SimHits'),
+    HGCSimHits = cms.VInputTag('g4SimHits:HGCHitsEE',
+                               'g4SimHits:HGCHitsHEfront',
+                               'g4SimHits:HGCHitsHEback'),
 
     calibrParFile = cms.FileInPath('RecoParticleFlow/PandoraTranslator/data/pandoraCalibrPars_pedro05032015.txt'),
     layerDepthFile = cms.FileInPath('RecoParticleFlow/PandoraTranslator/data/HGCmaterial_v5.root'),
