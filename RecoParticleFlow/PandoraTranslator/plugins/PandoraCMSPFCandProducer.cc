@@ -1890,13 +1890,13 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	      if (det == 1) currentSimHitEnergy *= (m_calibHEF.GetEMCalib(layer,eta) * m_calibHEF.GetADC2GeV());
 	      if (det == 2) currentSimHitEnergy *= (m_calibHEB.GetEMCalib(layer,eta) * m_calibHEB.GetADC2GeV());                                              
 	      
-	      int gid = my_hit.geantTrackId();                                                                                                                                
-	      sumEneGp += currentSimHitEnergy;                                                                                                                                 
-	      if (geantTrackIdToSimHitEnergy.count(gid)) {                                                                                                                     
-		geantTrackIdToSimHitEnergy[gid] += currentSimHitEnergy;                                                                                                        
-	      } else {                                                                                                                                                         
+	      int gid = my_hit.geantTrackId();
+	      sumEneGp += currentSimHitEnergy;
+	      if (geantTrackIdToSimHitEnergy.count(gid)) {
+		geantTrackIdToSimHitEnergy[gid] += currentSimHitEnergy; 
+	      } else {
 		ngp++;
-		geantTrackIdToSimHitEnergy[gid] = currentSimHitEnergy;                                                                                                         
+		geantTrackIdToSimHitEnergy[gid] = currentSimHitEnergy;
 	      }
 	    }
 
@@ -1912,7 +1912,7 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	      
 	      for(std::vector<PCaloHit>::iterator hit_it = theHGCHits[i].begin(); hit_it != theHGCHits[i].end(); ++hit_it)
 		{
-		  //gang SIM->RECO cells to get final layer assignment                                                                                                                         
+		  //gang SIM->RECO cells to get final layer assignment
 		  HGCalDetId simId(hit_it->id());
 		  int layer(simId.layer()),cell(simId.cell());
 		  std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
@@ -1980,36 +1980,50 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
         // get parent info vtx.processType()
         gpParentPdgId[counter] = std::numeric_limits<float>::max();
         gpGrandParentPdgId[counter] = std::numeric_limits<float>::max();
-        unsigned child_idx = m_barCodesToSimTrack[pos->second];
-        const SimTrack& child = simTk->at(child_idx);
-        if( !child.noVertex() && !child.noGenpart() ) { // we have a gen particle based sim track, there is no grandparent
-          auto parent_genpart = m_barCodesToGenParticle.find(child.genpartIndex());
-          if( parent_genpart != m_barCodesToGenParticle.end() ) {
+        if( pos->second > 0 ) {
+          std::cout << "\t\t\tLG TERADEBUG start gen particle unwinding with particle barcode: " << pos->second << std::endl;        
+          unsigned child_idx = m_barCodesToSimTrack.find(pos->second)->second;
+          std::cout << "\t\t\tLG TERADEBUG: child index " << child_idx << std::endl;
+          const SimTrack& child = simTk->at(child_idx);
+          if( !child.noVertex() && !child.noGenpart() ) { // we have a gen particle based sim track, there is no grandparent
+            auto parent_genpart = m_barCodesToGenParticle.find(child.genpartIndex());
+            if( parent_genpart != m_barCodesToGenParticle.end() ) {
+            std::cout << "\t\t\tLG TERADEBUG: parent genpart index " << parent_genpart->second << std::endl;
             const reco::GenParticle& parent = genpart->at(parent_genpart->second);
             gpParentPdgId[counter] = parent.pdgId(); // parent track is the gen particle in this case            
-          } else {
-            throw cms::Exception("GenParticleNotFound")
-              << "couldn't find gen particle" << child.genpartIndex() << "!";
-          }
-        } else if( !child.noVertex() ) { // we have sim track from geant interaction, check for grand parent
-          auto parent_track = m_simVertexToSimTrackParent.find(child.vertIndex());
-          const SimTrack& parent = simTk->at(m_barCodesToSimTrack.find(parent_track->second)->second);
-          gpParentPdgId[counter] = parent.type();
-          // now we find the grand parent info, two cases either it's another track from geant or it is gen particle
-          // this should be a recursive function, but I'm lazy
-          if( !parent.noVertex() && !parent.noGenpart() ) {
-            auto gparent_genpart = m_barCodesToGenParticle.find(parent.genpartIndex());
-            if( gparent_genpart != m_barCodesToGenParticle.end() ) {
-              const reco::GenParticle& gparent = genpart->at(gparent_genpart->second);
-              gpGrandParentPdgId[counter] = gparent.pdgId(); // parent track is the gen particle in this case
             } else {
               throw cms::Exception("GenParticleNotFound")
-                << "couldn't find gen particle" << parent.genpartIndex() << "!";
+                << "couldn't find gen particle" << child.genpartIndex() << "!";
             }
-          } else if( !parent.noVertex() ) {
-            auto gparent_track = m_simVertexToSimTrackParent.find(parent.vertIndex());
-            const SimTrack& gparent = simTk->at(m_barCodesToSimTrack.find(gparent_track->second)->second);
-            gpGrandParentPdgId[counter] = gparent.type();
+          } else if( !child.noVertex() ) { // we have sim track from geant interaction, check for grand parent
+            auto parent_track = m_simVertexToSimTrackParent.find(child.vertIndex());
+            if( parent_track == m_simVertexToSimTrackParent.end() ) {
+              throw cms::Exception("GenParticleNotFound")
+                << "couldn't find parent sim track from vertex " << child.vertIndex() << " track id is: " << child.trackId() << "!";
+          }
+            const SimTrack& parent = simTk->at(m_barCodesToSimTrack.find(parent_track->second)->second);
+            std::cout << "\t\t\tLG TERADEBUG: parent simtrack index " << parent.trackId() << std::endl;
+            gpParentPdgId[counter] = parent.type();
+            // now we find the grand parent info, two cases either it's another track from geant or it is gen particle
+            // this should be a recursive function, but I'm lazy
+            if( !parent.noVertex() && !parent.noGenpart() ) {
+              auto gparent_genpart = m_barCodesToGenParticle.find(parent.genpartIndex());
+              if( gparent_genpart != m_barCodesToGenParticle.end() ) {
+              const reco::GenParticle& gparent = genpart->at(gparent_genpart->second);
+              gpGrandParentPdgId[counter] = gparent.pdgId(); // parent track is the gen particle in this case
+              } else {
+                throw cms::Exception("GenParticleNotFound")
+                  << "couldn't find gen particle" << parent.genpartIndex() << "!";
+              }
+            } else if( !parent.noVertex() ) {
+              auto gparent_track = m_simVertexToSimTrackParent.find(parent.vertIndex());
+              if( parent_track == m_simVertexToSimTrackParent.end() ) {
+                throw cms::Exception("GenParticleNotFound")
+                  << "couldn't find grandparent sim track from vertex " << parent.vertIndex() << " track id is: " << parent.trackId() << "!";
+              }              
+              const SimTrack& gparent = simTk->at(m_barCodesToSimTrack.find(gparent_track->second)->second);
+              gpGrandParentPdgId[counter] = gparent.type();
+            }
           }
         }
 	gpStartRadius[counter] = geantTrackIdToStartingRadius[pos->second];
