@@ -1998,8 +1998,10 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
           } else if( !child.noVertex() ) { // we have sim track from geant interaction, check for grand parent
             auto parent_track = m_simVertexToSimTrackParent.find(child.vertIndex());
             if( parent_track == m_simVertexToSimTrackParent.end() ) {
-              throw cms::Exception("GenParticleNotFound")
-                << "couldn't find parent sim track from vertex " << child.vertIndex() << " track id is: " << child.trackId() << "!";
+	      //              throw cms::Exception("GenParticleNotFound")
+	      //                << "couldn't find parent sim track from vertex " << child.vertIndex() << " track id is: " << child.trackId() << "!";
+	      std::cout << " SCZ MEGADEBUG removed exception couldn't find parent sim track from vertex " << child.vertIndex() << " track id is: " << child.trackId() << "!" << std::endl;
+	      continue;
           }
             const SimTrack& parent = simTk->at(m_barCodesToSimTrack.find(parent_track->second)->second);
             std::cout << "\t\t\tLG TERADEBUG: parent simtrack index " << parent.trackId() << std::endl;
@@ -2007,6 +2009,7 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
             // now we find the grand parent info, two cases either it's another track from geant or it is gen particle
             // this should be a recursive function, but I'm lazy
             if( !parent.noVertex() && !parent.noGenpart() ) {
+	      std::cout << "SCZ TERADEBUG in !parent.noVertex() && !parent.noGenpart()" << std::endl;
               auto gparent_genpart = m_barCodesToGenParticle.find(parent.genpartIndex());
               if( gparent_genpart != m_barCodesToGenParticle.end() ) {
               const reco::GenParticle& gparent = genpart->at(gparent_genpart->second);
@@ -2016,6 +2019,7 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
                   << "couldn't find gen particle" << parent.genpartIndex() << "!";
               }
             } else if( !parent.noVertex() ) {
+	      std::cout << "SCZ TERADEBUG in !parent.noVertex() " << std::endl;
               auto gparent_track = m_simVertexToSimTrackParent.find(parent.vertIndex());
               if( parent_track == m_simVertexToSimTrackParent.end() ) {
                 throw cms::Exception("GenParticleNotFound")
@@ -2030,6 +2034,8 @@ void PandoraCMSPFCandProducer::convertPandoraToCMSSW(const edm::Handle<reco::PFR
 	std::cout << "     SCZ GIGADEBUG " << counter++ << " " << pos->first << " " << pos->second << " " << geantTrackIdToSimHitEnergy[pos->second]
 		  << " " << geantTrackIdToSimTrackEnergy[pos->second] << " " << geantTrackIdToPdgId[pos->second] << std::endl;
       }
+
+      std::cout << " SCZ GIGADEBUG right before total electromagnetic energy" << std::endl;
 
       const float totalElectromagneticEnergy(pCluster->GetElectromagneticEnergy() - pCluster->GetIsolatedElectromagneticEnergy());
       mipFraction = pCluster->GetMipFraction();
@@ -2618,8 +2624,8 @@ void PandoraCMSPFCandProducer::beginJob()
     clusterTree->Branch("gpEneFrac",gpEneFrac,"gpEneFrac[ngp]/F");
     clusterTree->Branch("gpEneTotal",gpEneTotal,"gpEneTotal[ngp]/F");
     clusterTree->Branch("gpPdgId",gpPdgId,"gpPdgId[ngp]/F");
-    clusterTree->Branch("gpPdgId",gpParentPdgId,"gpParentPdgId[ngp]/F");
-    clusterTree->Branch("gpPdgId",gpGrandParentPdgId,"gpGrandParentPdgId[ngp]/F");
+    clusterTree->Branch("gpParentPdgId",gpParentPdgId,"gpParentPdgId[ngp]/F");
+    clusterTree->Branch("gpGrandParentPdgId",gpGrandParentPdgId,"gpGrandParentPdgId[ngp]/F");
     clusterTree->Branch("gpStartRadius",gpStartRadius,"gpStartRadius[ngp]/F");
     clusterTree->Branch("mipFraction",&mipFraction);
     clusterTree->Branch("dCosR",&dCosR);
