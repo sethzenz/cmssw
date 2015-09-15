@@ -410,10 +410,12 @@ flashggPuppiProducer::produce( Event &evt , const EventSetup & )
       //nalgos = fPuppiContainer->puppiNAlgos();
     }
   }
-  std::cout << "flashgg::puppiCand == " << fPuppiCandidates->size()
-	    << "         inputCand == " << fRecoObjCollection.size()
-	    << std::endl;
-  
+  if (debug_) {
+    std::cout << "flashgg::puppiCand == " << fPuppiCandidates->size()
+	      << "         inputCand == " << fRecoObjCollection.size()
+	      << std::endl;
+  }
+    
   evt.put(lPupOut);
   evt.put(p4PupOut);
   edm::OrphanHandle<reco::PFCandidateCollection> oh = evt.put( fPuppiCandidates );
