@@ -277,7 +277,8 @@ void TagProbeFitTreeProducer::endLuminosityBlock(edm::LuminosityBlock const& iLu
 
 void TagProbeFitTreeProducer::endJob() {
   // ask to write the current PSet info into the TTree header
-  treeFiller_->writeProvenance(edm::getProcessParameterSet());
+  // FIXME !!
+  //treeFiller_->writeProvenance(edm::getProcessParameterSet());
   if (isMC_) {    
     treeFiller_->addTotWeightBranch(totGenWeight_, totEvents_);
   }

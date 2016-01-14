@@ -97,8 +97,9 @@ bool ProbeTreeProducer::filter(edm::Event& iEvent, const edm::EventSetup& iSetup
 }
 
 void ProbeTreeProducer::endJob(){
-    // ask to write the current PSet info into the TTree header
-    probeFiller_->writeProvenance(edm::getProcessParameterSet());
+  // ask to write the current PSet info into the TTree header
+  // FIXME !!!
+  //probeFiller_->writeProvenance(edm::getProcessParameterSet());
 }
 
 //define this as a plug-in

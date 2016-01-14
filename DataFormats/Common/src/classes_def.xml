@@ -149,10 +149,7 @@
  <class name="std::vector<edm::EventAuxiliary>"/>
  <class name="edm::Wrapper<std::vector<edm::EventAuxiliary> >"/>
  <class name="edm::Wrapper<std::vector<edm::ErrorSummaryEntry> >"/>
- <class name="edm::MergeableCounter" ClassVersion="10">
-  <version ClassVersion="10" checksum="3792606006"/>
- </class>
- <class name="edm::Wrapper<edm::MergeableCounter>"/>
+ 
 
  <class name="edm::ConditionsInEventBlock" ClassVersion="10">
   <version ClassVersion="10" checksum="28865621"/>
