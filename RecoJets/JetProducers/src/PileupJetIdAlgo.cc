@@ -339,7 +339,8 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 	    float candPt = icand->pt();
 	    float candPtFrac = candPt/jetPt;
 	    float candDr   = reco::deltaR(*icand,*jet);
-	    float candDeta = icand->eta() - jet->eta();
+	    //	    float candDeta = icand->eta() - jet->eta();
+	    float candDeta = std::abs( icand->eta() - jet->eta() ); // restore behavior from before a9e8a6696da19e054c976a7b3a97a4a179f01585
 	    float candDphi = reco::deltaPhi(*icand,*jet);
 	    float candPtDr = candPt * candDr;
 	    size_t icone = std::lower_bound(&cones[0],&cones[ncones],candDr) - &cones[0];
@@ -487,6 +488,7 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
                                         bool isVtx0  = (iv.position() - vtx->position()).r() < 0.02;
 
 					if (isVtx0) {
+					  //					  std::cout << "PileupJetIdAlgo SCZ debg: we have vertex " << vtx_i;
 					    if (lPack->fromPV(vtx_i) == pat::PackedCandidate::PVUsedInFit) inVtx0 = true;
 					    if (lPack->fromPV(vtx_i) == 0) inVtxOther = true;
 					    dZ0 = lPack->dz(vtx_i);
@@ -496,15 +498,18 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 						dZ_tmp = lPack->dz(iv.position());
 					}
 				}
+				//				std::cout << " inVtx0=" << inVtx0 << " inVtxOther=" << inVtxOther << std::endl;
 				if (inVtx0){
 					internalId_.betaClassic_ += tkpt;
+					//					internalId_.beta_ += tkpt; // restore old behavior before 6fa9e8924d74946b17aec8804cc63f1aa695a076
 				} else if (inVtxOther){
-					internalId_.betaStarClassic_ += tkpt;
+				  internalId_.betaStarClassic_ += tkpt;
+				  //				  internalId_.betaStar_ += tkpt; // restore old behavior before 6fa9e8924d74946b17aec8804cc63f1aa695a076
 				}
 				if (fabs(dZ0) < 0.2){
-					internalId_.beta_ += tkpt;
+				  internalId_.beta_ += tkpt;
 				} else if (fabs(dZ_tmp) < 0.2){
-					internalId_.betaStar_ += tkpt;
+				  internalId_.betaStar_ += tkpt;
 				}
 			}
 		}
@@ -647,7 +652,8 @@ PileupJetIdentifier PileupJetIdAlgo::computeIdVariables(const reco::Jet * jet, f
 	internalId_.sumNePt_ = sumPtNe;
 
 	internalId_.jetR_    = lLead->pt()/sumPt;
-	internalId_.jetRchg_ = lLeadCh->pt()/sumPt;
+	// internalId_.jetRchg_ = lLeadCh->pt()/sumPt;
+	internalId_.jetRchg_ = lLeadEm->pt()/sumPt; // restore old behavior from before a9e8a6696da19e054c976a7b3a97a4a179f01585
 	internalId_.dRMatch_ = dRmin;
 
 	if( sumTkPt != 0. ) {
