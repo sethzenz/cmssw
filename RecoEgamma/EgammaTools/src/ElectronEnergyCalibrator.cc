@@ -190,7 +190,6 @@ std::pair<float,float> ElectronEnergyCalibrator::calCombinedMom(reco::GsfElectro
   const float oldTrkMomErr = ele.trackMomentumError();
  
   setEcalEnergy(ele,scale,smear);
-
   float ecalEnergyErrForComb = useSmearCorrEcalEnergyErrInComb_ ?  ele.correctedEcalEnergyError() : oldEcalEnergyErr*scale;
   const auto& combinedMomentum = epCombinationTool_->combine(ele,ecalEnergyErrForComb);
   
